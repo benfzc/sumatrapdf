@@ -47,7 +47,8 @@ static const WCHAR* kFontName = L"Microsoft JhengHei UI";
 // pages after the last visible one translated ahead of time
 constexpr int kPrefetchPages = 2;
 // Chinese is denser than the Latin text it replaces: it gets at least this
-// size (at 96 dpi) and may take the blank space around its paragraph
+// size (at 96 dpi) and may take the blank space right of and below its
+// paragraph. Never smaller, so text of one kind has one size on the page.
 constexpr int kMinReadablePx = 13;
 // smallest font a size computation may produce
 constexpr int kMinFontPx = 8;
@@ -59,10 +60,8 @@ constexpr int kGapPx = 2;
 constexpr int kCoverPadPx = 1;
 // sum of RGB differences still treated as the page background
 constexpr int kBlankTolerance = 24;
-// a translation may grow into blank space this many font sizes on each side
+// a translation may grow into blank space this many font sizes right and down
 constexpr int kMaxGrowEm = 3;
-// tight spots (table cells) may go below the readable size down to this
-constexpr int kMinTightPx = 10;
 constexpr int kStatusMargin = 6;
 constexpr int kStatusFontPx = 12;
 
@@ -82,6 +81,18 @@ static TranslationService* gService = nullptr;
 // the document the service and gPages belong to
 static Str gDocPath;
 static Vec<BvPage*> gPages;
+
+// translations cut with an ellipsis in the last paint: hovering one shows it
+// in full
+static MainWindow* gHoverWin = nullptr;
+static Vec<Rect> gHoverRects;
+static StrVec gHoverTexts;
+
+static void ResetHover(MainWindow* win) {
+    gHoverWin = win;
+    VecReset(gHoverRects);
+    gHoverTexts.Reset();
+}
 
 static int HttpPostForm(Str url, Str body, str::Builder& reply) {
     HttpRsp rsp;
@@ -188,7 +199,25 @@ void BilingualViewShutdown() {
     TrServiceDelete(gService);
     gService = nullptr;
     FreePages();
+    ResetHover(nullptr);
     str::FreePtr(&gDocPath);
+}
+
+// shows the full translation of an ellipsis-cut paragraph under the mouse
+bool BilingualViewOnSetCursor(MainWindow* win, Point pt) {
+    if (!BilingualViewIsOn(win) || win != gHoverWin) {
+        return false;
+    }
+    for (int i = 0; i < len(gHoverRects); i++) {
+        Rect rc = gHoverRects[i];
+        if (!rc.Contains(pt)) {
+            continue;
+        }
+        win->ShowToolTip(gHoverTexts.At(i), rc, true);
+        SetCursorCached(IDC_ARROW);
+        return true;
+    }
+    return false;
 }
 
 constexpr int kMaxFontPx = 64;
@@ -349,22 +378,21 @@ static bool ColBlank(const LeftSnapshot& snap, int x, int y0, int y1, COLORREF b
     return true;
 }
 
-// Blank area around a paragraph that its translation may use: grows right,
-// left, down and up while the page stays blank, so it stops at other text,
-// table lines, figures and translations already drawn (they are marked in the
-// snapshot). Each side grows at most a few font sizes.
+// Blank area right of and below a paragraph that its translation may use:
+// grows while the page stays blank, so it stops at other text, table lines,
+// figures and translations already drawn (they are marked in the snapshot).
+// Never left or up, so translations keep the paragraph's left edge and top.
 static Rect FreeRectAround(const LeftSnapshot& snap, Rect rc, COLORREF bg, Rect limit, int fontPx) {
     limit = limit.Intersect(Rect(0, 0, snap.dx, snap.dy));
     rc = rc.Intersect(limit);
     if (rc.IsEmpty()) {
         return rc;
     }
-    int maxSide = std::max(rc.dx / 2, fontPx * kMaxGrowEm);
+    int maxRight = std::max(rc.dx / 2, fontPx * kMaxGrowEm);
     int maxDown = std::max(rc.dy * 2, fontPx * kMaxGrowEm);
-    int maxUp = std::max(rc.dy, fontPx * 2);
 
     int x1 = rc.x + rc.dx;
-    int xEnd = std::min(limit.x + limit.dx, x1 + maxSide);
+    int xEnd = std::min(limit.x + limit.dx, x1 + maxRight);
     while (x1 < xEnd && ColBlank(snap, x1, rc.y, rc.y + rc.dy, bg)) {
         x1++;
     }
@@ -372,33 +400,15 @@ static Rect FreeRectAround(const LeftSnapshot& snap, Rect rc, COLORREF bg, Rect 
         x1 = std::max(x1 - kGapPx, rc.x + rc.dx);
     }
 
-    int x0 = rc.x;
-    int xStart = std::max(limit.x, x0 - maxSide);
-    while (x0 > xStart && ColBlank(snap, x0 - 1, rc.y, rc.y + rc.dy, bg)) {
-        x0--;
-    }
-    if (x0 > xStart) {
-        x0 = std::min(x0 + kGapPx, rc.x);
-    }
-
     int y1 = rc.y + rc.dy;
     int yEnd = std::min(limit.y + limit.dy, y1 + maxDown);
-    while (y1 < yEnd && RowBlank(snap, y1, x0, x1, bg)) {
+    while (y1 < yEnd && RowBlank(snap, y1, rc.x, x1, bg)) {
         y1++;
     }
     if (y1 < yEnd) {
         y1 = std::max(y1 - kGapPx, rc.y + rc.dy);
     }
-
-    int y0 = rc.y;
-    int yStart = std::max(limit.y, y0 - maxUp);
-    while (y0 > yStart && RowBlank(snap, y0 - 1, x0, x1, bg)) {
-        y0--;
-    }
-    if (y0 > yStart) {
-        y0 = std::min(y0 + kGapPx, rc.y);
-    }
-    return Rect(x0, y0, x1 - x0, y1 - y0);
+    return Rect(rc.x, rc.y, x1 - rc.x, y1 - rc.y);
 }
 
 // claim an area of the page so later translations don't grow into it: paint
@@ -415,71 +425,53 @@ static void MarkUsed(LeftSnapshot& snap, Rect rc, COLORREF pageBg) {
     }
 }
 
-// where and at what size a translation goes, in left-half coordinates
-struct TextPlace {
-    Rect rc;
-    int px = 0;
-};
-
-// Tries, in order: the paragraph's own box, widened to the right, widened
-// both ways, then also moved up into blank space above. Each is tried from
-// startPx down to minPx; the first that fits wins.
-static bool PlaceText(HDC hdc, WStr ws, Rect rc, Rect free, int startPx, int minPx, FontWeight weight, TextPlace* out) {
-    int freeBottom = free.y + free.dy;
-    Rect candidates[] = {
-        Rect(rc.x, rc.y, rc.dx, freeBottom - rc.y),
-        Rect(rc.x, rc.y, free.x + free.dx - rc.x, freeBottom - rc.y),
-        Rect(free.x, rc.y, free.dx, freeBottom - rc.y),
-        free,
-    };
-    for (Rect c : candidates) {
-        if (c.dx <= 0 || c.dy <= 0) {
+// Box of a translation at the paragraph's left edge and top: the paragraph's
+// own width if that fits within the blank space below, else widened right.
+static bool PlaceText(HDC hdc, WStr ws, Rect rc, Rect free, int px, FontWeight weight, Rect* out) {
+    int maxDy = free.y + free.dy - rc.y;
+    int widths[] = {rc.dx, free.x + free.dx - rc.x};
+    for (int dx : widths) {
+        if (dx <= 0 || maxDy <= 0) {
             continue;
         }
-        for (int px = startPx; px >= minPx; px--) {
-            int textDy = TextHeight(hdc, ws, c.dx, px, weight);
-            if (textDy > c.dy) {
-                continue;
-            }
-            // as close to the paragraph's own top as the space allows
-            int y = std::max(c.y, std::min(rc.y, freeBottom - textDy));
-            out->rc = Rect(c.x, y, c.dx, textDy);
-            out->px = px;
+        int textDy = TextHeight(hdc, ws, dx, px, weight);
+        if (textDy <= maxDy) {
+            *out = Rect(rc.x, rc.y, dx, textDy);
             return true;
         }
     }
     return false;
 }
 
-// Replaces one paragraph's English with its translation, using blank space
-// around it so Chinese can be drawn at a readable size. Only when nothing
-// fits even at a small size is the text cut with an ellipsis.
+// Replaces one paragraph's English with its translation. The font size
+// depends only on the source font size, so all body text of a page has one
+// size; text that doesn't fit is cut with an ellipsis and shown in full on
+// hover.
 static void PaintTranslation(HDC hdc, LeftSnapshot& snap, Str text, Rect rc, int fontPx, FontWeight weight, Rect page,
                              COLORREF pageBg, COLORREF txtCol) {
     if (rc.dx <= 0 || rc.dy <= 0) {
         return;
     }
     TempWStr ws = ToTraditionalTemp(ToWStrTemp(text));
-    Rect free = FreeRectAround(snap, rc, pageBg, page, std::max(fontPx, DpiScale(kMinReadablePx)));
+    int px = limitValue(std::max(fontPx, DpiScale(kMinReadablePx)), kMinFontPx, kMaxFontPx);
+    Rect free = FreeRectAround(snap, rc, pageBg, page, px);
     if (free.IsEmpty()) {
-        free = rc;
+        return;
     }
 
-    int readablePx = DpiScale(kMinReadablePx);
-    int tightPx = DpiScale(kMinTightPx);
-    int startPx = limitValue(std::max(fontPx, readablePx), kMinFontPx, kMaxFontPx);
-    TextPlace place;
-    bool fits = PlaceText(hdc, ws, rc, free, startPx, readablePx, weight, &place) ||
-                PlaceText(hdc, ws, rc, free, readablePx - 1, tightPx, weight, &place);
-    if (!fits) {
-        place.px = tightPx;
-        place.rc = free;
-        ws = TruncateToFitTemp(hdc, ws, free.dx, free.dy, tightPx, weight);
+    Rect place;
+    if (!PlaceText(hdc, ws, rc, free, px, weight, &place)) {
+        // widest box the blank space allows, from the paragraph's top
+        place = Rect(rc.x, rc.y, free.x + free.dx - rc.x, free.y + free.dy - rc.y);
+        TempWStr full = ws;
+        ws = TruncateToFitTemp(hdc, ws, place.dx, place.dy, px, weight);
+        VecAppend(gHoverRects, Rect(place.x + snap.dx, place.y, place.dx, place.dy));
+        gHoverTexts.Append(ToUtf8Temp(full));
     }
 
     // hide the English it replaces, and the area the translation spills into
     int dx = snap.dx;
-    Rect used = rc.Union(place.rc);
+    Rect used = rc.Union(place);
     Rect cover(used.x + dx - kCoverPadPx, used.y - kCoverPadPx, used.dx + 2 * kCoverPadPx, used.dy + 2 * kCoverPadPx);
     RECT coverR = ToRECT(cover);
     HBRUSH brush = CreateSolidBrush(pageBg);
@@ -487,8 +479,8 @@ static void PaintTranslation(HDC hdc, LeftSnapshot& snap, Str text, Rect rc, int
     DeleteObject(brush);
     MarkUsed(snap, used, pageBg);
 
-    RECT r = ToRECT(Rect(place.rc.x + dx, place.rc.y, place.rc.dx, place.rc.dy + 1));
-    HGDIOBJ prevFont = SelectObject(hdc, TranslationFont(place.px, weight));
+    RECT r = ToRECT(Rect(place.x + dx, place.y, place.dx, place.dy + 1));
+    HGDIOBJ prevFont = SelectObject(hdc, TranslationFont(px, weight));
     SetTextColor(hdc, txtCol);
     DrawTextW(hdc, ws.s, len(ws), &r, kTextFlags);
     SelectObject(hdc, prevFont);
@@ -554,6 +546,7 @@ void BilingualViewPaint(MainWindow* win, HDC hdc) {
     DeleteObject(brush);
 
     int oldBkMode = SetBkMode(hdc, TRANSPARENT);
+    ResetHover(win);
     TrServiceNewGeneration(gService);
     int lastVisible = 0;
     for (int pageNo = 1; pageNo <= dm->PageCount(); pageNo++) {

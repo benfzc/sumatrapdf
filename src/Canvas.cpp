@@ -4234,6 +4234,9 @@ static LRESULT OnSetCursorMouseNone(MainWindow* win, HWND hwnd) {
         SetCursorCached(IDC_CROSS);
         return TRUE;
     }
+    if (BilingualViewOnSetCursor(win, pt)) {
+        return TRUE;
+    }
 
     WindowTab* tab = win->CurrentTab();
     Annotation* selected = tab->selectedAnnotation;

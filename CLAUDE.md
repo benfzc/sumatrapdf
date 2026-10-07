@@ -37,7 +37,7 @@
 已定案的設計決策：
 
 - 對照模式（`src/BilingualView.cpp`，命令 `CmdToggleBilingualView`，從 Ctrl+K 命令面板開啟）：同一個 canvas 視窗切成左右兩半，`MainWindow::GetViewPortSize()` 把 `DisplayModel` 的 viewport 寬度減半，原文排在左半；`DrawDocument()` 結束前由 `BilingualViewPaint()` 在右半畫「鏡像頁」，每段譯文畫在原文段落的 bbox 位置。兩半共用一個捲動位置，所以天然同步。
-- 鏡像頁的畫法：先把左半已 render 好的頁面像素複製到右半（圖、表格、示意圖因此照原樣出現），再只在已翻譯的段落上用頁面底色蓋掉英文、畫中文；未翻譯、跳過、失敗的段落保留原文。版面：從原段落 bbox 往右、左、下、上找空白（掃描左半的像素，遇到文字、表格線、圖或先前畫好的譯文就停，每邊最多約 3 倍字級），依序嘗試「原寬度 → 往右加寬 → 左右加寬 → 再往上挪」，字級從原文字級往下縮到 13px；都放不下才縮到 10px（表格窄格），最後才截斷加「…」。畫好的區域在快照裡標記為已佔用，後面的段落不會長進去。等寬字型（指令、程式碼）不翻譯。canvas 的 back buffer 是 GDI HDC，所以用 GDI `DrawTextW`。
+- 鏡像頁的畫法：先把左半已 render 好的頁面像素複製到右半（圖、表格、示意圖因此照原樣出現），再只在已翻譯的段落上用頁面底色蓋掉英文、畫中文；未翻譯、跳過、失敗的段落保留原文。版面以整頁一致為優先：譯文左緣與頂端固定在原段落的位置，只往右、往下找空白（掃描左半的像素，遇到文字、表格線、圖或先前畫好的譯文就停，最多約 3 倍字級），先試原寬度再試往右加寬。字級只由原文字級決定（`max(原文字級, 13px)`），不逐段縮小，所以同類文字整頁同大小。放不下就截斷加「…」，滑鼠移到該段時用 tooltip 顯示完整中文（不顯示英文）。畫好的區域在快照裡標記為已佔用，後面的段落不會長進去。等寬字型（指令、程式碼）不翻譯。canvas 的 back buffer 是 GDI HDC，所以用 GDI `DrawTextW`。
 - 簡繁：Google 偶爾漏掉 zh→zh-Hant 轉換而回簡體字，顯示前用 `LCMapStringEx(LCMAP_TRADITIONAL_CHINESE)` 逐字轉繁體（不做「软件→軟體」這類用語轉換）。
 - 段落來源：`EngineBase::ExtractTextLines()` 回傳 `PageTextLines`（每個「行片段」的文字、bbox、所屬 block、字級、是否粗體），由 `EngineMupdf` 用 stext 實作；一行內字距大於 1.8 倍字級就切成兩片（表格同一列的不同儲存格）。EPUB/FB2 預設也走 `EngineMupdf`，所以一併支援。`src/shared/ParagraphText` 的 `GroupParagraphs()` 把同 block、水平重疊、上下間距小於 0.6 倍字級的片段合成一段（所以表格每格各自一段、格內多行仍合併），再判斷是否跳過。譯文以原文字級起算、粗體照用。
 - 翻譯 provider：先只做 Google 翻譯的非官方免費端點（`translate.googleapis.com/translate_a/single?client=gtx`，不需 API key），付費 API 之後再加；透過 provider 介面抽象。
@@ -66,6 +66,6 @@ P1 狀態：
 
 - 已完成：`fork-build.yml`、spike 實測、`RateLimiter`、`TranslationCache`、`ParagraphText`、`GoogleFreeTranslate`（請求組裝與回應解析，unit test 用實際回應當 fixture）、`EngineBase::ExtractTextLines()`（原版與 ng 的 `EngineMupdf` 都有實作）、`TranslationService`（背景執行緒；HTTP、時鐘、sleep 由呼叫端注入，unit test 用假的 Google 回應）。
 - 已完成 UI：`BilingualView`（整個程式共用一個 `TranslationService`；換文件時 `TrServiceClear()`；HTTP 用 `HttpPostUrl`；`onPageDone` 經 `uitask::Post` 回 UI 執行緒重繪）。
-- 使用者實測回饋已處理：簡體字、中文太小、zoom 後原文被蓋、圖表不顯示、標題變小且沒粗體、表格多欄錯位、表格窄格常被截成「…」、指令被翻譯。
+- 使用者實測回饋已處理：簡體字、中文太小、zoom 後原文被蓋、圖表不顯示、標題變小且沒粗體、表格多欄錯位、指令被翻譯、譯文位置忽左忽右與字級忽大忽小（改為整頁一致的版面）。
 - 待辦：「只看譯文」模式（不分兩半，直接在原頁面上把英文換成中文；優先度低，因為 Google 翻譯品質仍需對照原文）。
 - 已知限制：段落抽取在 UI 執行緒做；狀態列只在重繪時更新；介面字串是英文。
