@@ -326,6 +326,7 @@ function sumatrapdf_files()
     "ParagraphText.*",
     "RateLimiter.*",
     "TranslationCache.*",
+    "TranslationService.*",
     "PageRenderService.*",
     "ReaderModel.*",
     "DocController.*",

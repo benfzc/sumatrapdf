@@ -558,6 +558,9 @@
     <ClInclude Include="..\src\shared\Translations.h">
       <Filter>src\shared</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\shared\TranslationService.h">
+      <Filter>src\shared</Filter>
+    </ClInclude>
     <ClInclude Include="..\src\shared\UpdateTemp.h">
       <Filter>src\shared</Filter>
     </ClInclude>
@@ -1295,6 +1298,9 @@
     <ClCompile Include="..\src\shared\TranslationLangs.cpp">
       <Filter>src\shared</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\shared\TranslationService.cpp">
+      <Filter>src\shared</Filter>
+    </ClCompile>
     <ClCompile Include="..\src\shared\UpdateTemp.cpp">
       <Filter>src\shared</Filter>
     </ClCompile>
@@ -1353,6 +1359,9 @@
       <Filter>src\shared\tests</Filter>
     </ClCompile>
     <ClCompile Include="..\src\shared\tests\TranslationCache_ut.cpp">
+      <Filter>src\shared\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\shared\tests\TranslationService_ut.cpp">
       <Filter>src\shared\tests</Filter>
     </ClCompile>
     <ClCompile Include="..\src\testcode\TestApp.cpp">

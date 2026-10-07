@@ -209,6 +209,8 @@ export const sharedFiles = [
   "src/shared/TranslationCache.cpp",
   "src/shared/TranslationCache.h",
   "src/shared/TranslationLangs.cpp",
+  "src/shared/TranslationService.cpp",
+  "src/shared/TranslationService.h",
   "src/shared/Translations.h",
   "src/shared/UpdateTemp.cpp",
   "src/shared/UpdateTemp.h",
@@ -251,6 +253,7 @@ export const sharedFiles = [
   "src/shared/tests/TextBlocks_ut.cpp",
   "src/shared/tests/TextSelection_ut.cpp",
   "src/shared/tests/TranslationCache_ut.cpp",
+  "src/shared/tests/TranslationService_ut.cpp",
   "src/shared/tools/MakeLzSA.cpp",
 ];
 

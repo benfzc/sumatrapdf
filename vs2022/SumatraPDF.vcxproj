@@ -1557,6 +1557,7 @@
     <ClInclude Include="..\src\shared\TextSelection.h" />
     <ClInclude Include="..\src\shared\TranslationCache.h" />
     <ClInclude Include="..\src\shared\Translations.h" />
+    <ClInclude Include="..\src\shared\TranslationService.h" />
     <ClInclude Include="..\src\shared\UpdateTemp.h" />
     <ClInclude Include="..\src\shared\WebpReader.h" />
     <ClInclude Include="..\src\shared\gui\PlatformFont.h" />
@@ -2197,6 +2198,7 @@
     <ClCompile Include="..\src\shared\TextSelection.cpp" />
     <ClCompile Include="..\src\shared\TranslationCache.cpp" />
     <ClCompile Include="..\src\shared\TranslationLangs.cpp" />
+    <ClCompile Include="..\src\shared\TranslationService.cpp" />
     <ClCompile Include="..\src\shared\UpdateTemp.cpp" />
     <ClCompile Include="..\src\shared\WebpReader.cpp" />
     <ClCompile Include="..\src\shared\gui\PlatformFont.cpp" />
@@ -2412,6 +2414,20 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Profile x64_asan|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="..\src\shared\tests\TranslationCache_ut.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release x64_asan|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze|ARM64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze x64_asan|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Profile|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Profile|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Profile|ARM64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Profile x64_asan|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\src\shared\tests\TranslationService_ut.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">true</ExcludedFromBuild>

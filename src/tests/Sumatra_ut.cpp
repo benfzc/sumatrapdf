@@ -66,6 +66,7 @@ void ParagraphText_UnitTests();
 void RateLimiter_UnitTests();
 void TextBlocks_UnitTests();
 void TranslationCache_UnitTests();
+void TranslationService_UnitTests();
 bool PdfDarkModeImageStats_UnitTest();
 void SimpleLogTest();
 
@@ -419,6 +420,7 @@ static void SumatraPDF_UnitTests() {
     RateLimiter_UnitTests();
     TextBlocks_UnitTests();
     TranslationCache_UnitTests();
+    TranslationService_UnitTests();
     CommandPaletteModel_UnitTests();
     DocPropertiesTest();
     parseCommandsTest();

@@ -497,6 +497,7 @@ const appSources = [
   "src/ParagraphText.cpp",
   "src/RateLimiter.cpp",
   "src/TranslationCache.cpp",
+  "src/TranslationService.cpp",
   "src/ng/PageRenderService.cpp",
   "src/ReaderModel.cpp",
   "src/ng/RefHoverDetect.cpp",

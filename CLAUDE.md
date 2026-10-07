@@ -62,5 +62,5 @@
 
 P1 狀態：
 
-- 已完成：`fork-build.yml`、spike 實測、`RateLimiter`、`TranslationCache`、`ParagraphText`、`GoogleFreeTranslate`（請求組裝與回應解析，unit test 用實際回應當 fixture）、`EngineBase::ExtractTextBlocks()`（原版與 ng 的 `EngineMupdf` 都有實作）。
-- 待辦（依序）：`TranslationService`（佇列、批次、背景執行緒）→ 鏡像頁 UI 與「切換中英對照」命令。
+- 已完成：`fork-build.yml`、spike 實測、`RateLimiter`、`TranslationCache`、`ParagraphText`、`GoogleFreeTranslate`（請求組裝與回應解析，unit test 用實際回應當 fixture）、`EngineBase::ExtractTextBlocks()`（原版與 ng 的 `EngineMupdf` 都有實作）、`TranslationService`（背景執行緒；HTTP、時鐘、sleep 由呼叫端注入，unit test 用假的 Google 回應）。
+- 待辦：鏡像頁 UI 與「切換中英對照」命令；UI 層要提供以 `HttpPostUrl` 實作的 `TrPostFn`，並用 `uitask::Post` 把 `onPageDone` 轉回 UI 執行緒。
