@@ -36,7 +36,7 @@
 
 已定案的設計決策：
 
-- 對照模式啟用時，畫布平分左右兩半：左邊原文，右邊「鏡像頁」。鏡像頁直接套用 `DisplayModel` 的頁面座標，每段譯文畫在原文段落的 bbox 位置；用原生 Direct2D/DirectWrite 繪製。
+- 對照模式（`src/BilingualView.cpp`，命令 `CmdToggleBilingualView`，從 Ctrl+K 命令面板開啟）：同一個 canvas 視窗切成左右兩半，`MainWindow::GetViewPortSize()` 把 `DisplayModel` 的 viewport 寬度減半，原文排在左半；`DrawDocument()` 結束前由 `BilingualViewPaint()` 在右半畫「鏡像頁」，每段譯文畫在原文段落的 bbox 位置。兩半共用一個捲動位置，所以天然同步。canvas 的 back buffer 是 GDI HDC，所以用 GDI `DrawTextW`，字級從原文行高往下縮到放得進 bbox。
 - 段落來源：`EngineBase::ExtractTextBlocks()` 回傳 `PageTextBlocks`（每個 block 的 bbox 與各行文字），由 `EngineMupdf` 用 `fz_stext_block` 實作。EPUB/FB2 預設也走 `EngineMupdf`，所以一併支援。block 內各行由 `src/shared/ParagraphText` 合成段落並判斷是否跳過。
 - 翻譯 provider：先只做 Google 翻譯的非官方免費端點（`translate.googleapis.com/translate_a/single?client=gtx`，不需 API key），付費 API 之後再加；透過 provider 介面抽象。
 - 候選 provider：Google AI Studio 免費 API key（Gemini API）。和 gtx 端點的差異：
@@ -63,4 +63,5 @@
 P1 狀態：
 
 - 已完成：`fork-build.yml`、spike 實測、`RateLimiter`、`TranslationCache`、`ParagraphText`、`GoogleFreeTranslate`（請求組裝與回應解析，unit test 用實際回應當 fixture）、`EngineBase::ExtractTextBlocks()`（原版與 ng 的 `EngineMupdf` 都有實作）、`TranslationService`（背景執行緒；HTTP、時鐘、sleep 由呼叫端注入，unit test 用假的 Google 回應）。
-- 待辦：鏡像頁 UI 與「切換中英對照」命令；UI 層要提供以 `HttpPostUrl` 實作的 `TrPostFn`，並用 `uitask::Post` 把 `onPageDone` 轉回 UI 執行緒。
+- 已完成 UI：`BilingualView`（整個程式共用一個 `TranslationService`；換文件時 `TrServiceClear()`；HTTP 用 `HttpPostUrl`；`onPageDone` 經 `uitask::Post` 回 UI 執行緒重繪）。
+- 待驗證：使用者下載 CI 產出的 exe 實測。已知限制：段落抽取在 UI 執行緒做；狀態列只在重繪時更新；介面字串是英文。

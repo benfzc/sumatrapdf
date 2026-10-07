@@ -409,6 +409,10 @@ Size MainWindow::GetViewPortSize() const {
         size.dy += DpiGetSystemMetrics(SM_CYHSCROLL);
     }
     ReportIf((style & (WS_VSCROLL | WS_HSCROLL)) && !AsFixed());
+    // bilingual view: the document gets the left half, see BilingualView.cpp
+    if (bilingualView && AsFixed()) {
+        size.dx /= 2;
+    }
     return size;
 }
 

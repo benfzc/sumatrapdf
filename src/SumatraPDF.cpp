@@ -125,6 +125,7 @@
 #include "ReadAloud.h"
 #include "ReadingAutoScroll.h"
 #include "ReadingBar.h"
+#include "BilingualView.h"
 #include "ExplorerQuickLook.h"
 #include "PagePosition.h"
 #include "base/DbgHelpDyn.h"
@@ -12789,6 +12790,10 @@ static LRESULT FrameOnCommand(MainWindow* win, HWND hwnd, UINT msg, WPARAM wp, L
             ReadingBarToggle(win);
             break;
 
+        case CmdToggleBilingualView:
+            BilingualViewToggle(win);
+            break;
+
         case CmdToggleReadingBarInvert:
             ReadingBarToggleInvert(win);
             break;
@@ -15620,6 +15625,7 @@ TempStr WindowStateDuringLoadResultTemp(int* exitCodeOut) {
 }
 
 static void ShutdownCleanup() {
+    BilingualViewShutdown();
     TtsRelease();
     FreeHomePageTips();
     DestroySvgPixmapIconsCache();

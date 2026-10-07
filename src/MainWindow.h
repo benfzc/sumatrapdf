@@ -716,6 +716,8 @@ struct MainWindow { // NOLINT(clang-analyzer-optin.performance.Padding)
     ReadingBarDrag readingBarDrag = ReadingBarDrag::None;
     int readingBarDragOff = 0;
     bool readingBarHover = false;
+    // canvas split: document on the left, its translation on the right
+    bool bilingualView = false;
 
     // small floating toolbar shown after a text selection in fixed-page
     // floating selection actions bar (controlled by the SelectionToolbar setting)

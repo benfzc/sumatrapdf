@@ -62,6 +62,7 @@ void TrServiceStart(TranslationService* svc);
 void TrServiceDelete(TranslationService* svc);
 
 void TrServiceNewGeneration(TranslationService* svc);
+void TrServiceClear(TranslationService* svc);
 void TrServiceRequest(TranslationService* svc, int pageNo, const StrVec& paragraphs, TrPriority prio);
 TrState TrServiceGet(TranslationService* svc, int pageNo, int idx, TempStr* textOut);
 TrServiceStatus TrServiceGetStatus(TranslationService* svc);

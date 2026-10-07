@@ -153,6 +153,16 @@ void TrServiceNewGeneration(TranslationService* svc) {
 // Resolves what it can right away (cache hits, paragraphs not worth
 // translating) and queues the rest. Re-requesting a known page only
 // refreshes its priority and generation.
+// forget all pages, e.g. another document was opened. A batch already sent
+// still lands in the cache.
+void TrServiceClear(TranslationService* svc) {
+    AutoUnlockMutex lock(&svc->mu);
+    for (TrPage* p : svc->pages) {
+        delete p;
+    }
+    VecReset(svc->pages);
+}
+
 void TrServiceRequest(TranslationService* svc, int pageNo, const StrVec& paragraphs, TrPriority prio) {
     AutoUnlockMutex lock(&svc->mu);
     TrPage* p = FindPage(svc, pageNo);

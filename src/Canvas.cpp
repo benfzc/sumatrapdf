@@ -67,6 +67,7 @@
 #include "Translations.h"
 
 #include "RefHover.h"
+#include "BilingualView.h"
 #include "Canvas.h"
 #include "SumatraLog.h"
 
@@ -4133,6 +4134,10 @@ static bool DrawDocument(MainWindow* win, HDC hdc, Rect rcArea) {
     // Empty viewport (narrow page on a canvas sized by a wider one): the last
     // frame is stale after a reload or jump. Flush the background. Issue #6136.
     if (!anyPageVisible) {
+        shouldPaint = true;
+    }
+    if (BilingualViewIsOn(win)) {
+        BilingualViewPaint(win, hdc);
         shouldPaint = true;
     }
     return shouldPaint;
