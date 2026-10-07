@@ -53,7 +53,7 @@ constexpr int kPrefetchPages = 2;
 constexpr int kStartBodyPx = 13;
 // ...and shrinks a step at a time until this share of paragraphs fit, but body
 // text never gets smaller than kMinBodyPx
-constexpr int kFitPercent = 70;
+constexpr int kFitPercent = 90;
 constexpr float kShrinkStep = 0.95f;
 constexpr int kMinBodyPx = 10;
 // smallest font a size computation may produce
