@@ -1,12 +1,12 @@
-# Fork-only CI: build and test on a GitHub-hosted Windows runner.
-# The upstream build.yml uses -ci mode, which needs upstream upload secrets
-# and always fails on this fork.
+# Fork-only CI: x64 debug unit tests and a downloadable x64 release exe.
+# The upstream build.yml (-ci mode) only covers the Win32 build on this fork
+# and keeps no artifacts.
 name: fork-build
 on:
   push:
     branches: ["claude/**"]
     # doc-only pushes don't need a 40 minute Windows build
-    paths-ignore: ["docs/**", "**.md"]
+    paths-ignore: ["docs/**", "spike/**", "**.md"]
   workflow_dispatch:
 permissions:
   contents: read

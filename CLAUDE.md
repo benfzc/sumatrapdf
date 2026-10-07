@@ -26,7 +26,9 @@
 ## 建置
 
 - 開發者電腦沒有 Visual Studio。Windows 版的編譯與 unit tests 交給 GitHub Actions（`windows-2025-vs2026` runner）執行。
-- 上游的 `.github/workflows/build.yml` 用 `-ci` 模式，需要上游的上傳密鑰，在本 fork 會失敗，不要依賴它。
+- 上游的 `.github/workflows/build.yml`（`-ci` 模式）在本 fork 的 push 上會建置 Win32 版並跑 debug unit tests，不上傳任何東西，約 9 分鐘。
+- 本 fork 的 `.github/workflows/fork-build.yml` 補上 x64：debug unit tests、release 建置，並把 `SumatraPDF.exe` 上傳成 artifact。
+- Google 免費翻譯端點會封鎖雲端 IP（回 429 加 HTML "Sorry" 頁），所以 CI 和雲端容器裡的測試不可連線，改用存下來的回應當 fixture。
 - 不依賴 Win32 的模組（放在 `src/shared`、`src/base`）先在 Linux 用 g++ 編譯並跑 unit tests，再 push 給 CI。
 
 ## 進行中的功能：PDF 中英對照（鏡像頁）
