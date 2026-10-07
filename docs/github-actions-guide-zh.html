@@ -98,6 +98,19 @@ ol.steps li { margin-bottom: 8px; }
 .note { border-left: 3px solid var(--accent); background: var(--accent-soft); padding: 12px 16px; border-radius: 0 6px 6px 0; margin: 16px 0; font-size: 15px; max-width: 46em; }
 .note.warn-box { border-left-color: var(--warn); background: var(--warn-soft); }
 .note p:last-child { margin-bottom: 0; }
+.flow { display: grid; justify-items: center; gap: 4px; margin: 16px 0 20px; max-width: 42em; font-size: 14.5px; }
+.flow .node { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 8px 14px; text-align: center; line-height: 1.5; min-width: 0; }
+.flow .node small { display: block; color: var(--muted); font-size: 12.5px; }
+.flow .arrow { color: var(--muted); line-height: 1; }
+.flow .decide { position: relative; }
+.flow .decide .node { border: 2px solid var(--accent); background: var(--accent-soft); }
+.flow .decide .no { position: absolute; left: 100%; top: 50%; transform: translateY(-50%); margin-left: 10px; white-space: nowrap; color: var(--muted); font-size: 13.5px; }
+.flow .yes { color: var(--accent); font-size: 13px; font-weight: 700; }
+.flow .lanes { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: 100%; }
+.flow .lane { display: grid; justify-items: center; gap: 4px; border: 1px dashed var(--line); border-radius: 8px; padding: 10px 8px; }
+.flow .lane .lbl { font-family: var(--f-mono); font-size: 12px; color: var(--accent); }
+.flow .end { border-color: var(--ok); background: var(--ok-soft); }
+
 footer { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); }
 a { color: var(--accent); }
 </style>
@@ -114,6 +127,7 @@ a { color: var(--accent); }
       <li><a href="#daily">日常操作</a></li>
       <li><a href="#advanced">進階功能</a></li>
       <li><a href="#embedded">Embedded 範例</a></li>
+      <li><a href="#windows">Build Windows 執行檔</a></li>
       <li><a href="#cost">費用與限制</a></li>
       <li><a href="#security">安全守則</a></li>
       <li><a href="#trouble">疑難排解</a></li>
@@ -181,21 +195,39 @@ a { color: var(--accent); }
 
     <section id="how">
       <h2>運作原理</h2>
-      <pre class="mermaid">
-flowchart LR
-    A[git push] --> B[GitHub 收到 Event]
-    B --> C[讀取該 commit 的<br/>.github/workflows/*.yml]
-    C --> D{on: 條件<br/>符合？}
-    D -- 否 --> X[不執行]
-    D -- 是 --> E[排程 Jobs]
-    E --> F1[Job A<br/>全新 VM]
-    E --> F2[Job B<br/>全新 VM]
-    F1 --> G1[依序執行 Steps<br/>即時串流 log]
-    F2 --> G2[依序執行 Steps]
-    G1 --> H[上傳 Artifact<br/>回報 ✓ / ✗]
-    G2 --> H
-    H --> I[VM 銷毀]
-      </pre>
+      <div class="flow" role="img" aria-label="git push 觸發 workflow 的流程">
+        <div class="node">git push</div>
+        <div class="arrow">↓</div>
+        <div class="node">GitHub 收到 Event</div>
+        <div class="arrow">↓</div>
+        <div class="node">讀取該 commit 的<br><code>.github/workflows/*.yml</code></div>
+        <div class="arrow">↓</div>
+        <div class="decide">
+          <div class="node"><code>on:</code> 條件符合？</div>
+          <div class="no">否 → 不執行</div>
+        </div>
+        <div class="yes">是 ↓</div>
+        <div class="node">排程 Jobs</div>
+        <div class="arrow">↓</div>
+        <div class="lanes">
+          <div class="lane">
+            <div class="lbl">Job A</div>
+            <div class="node">全新 VM</div>
+            <div class="arrow">↓</div>
+            <div class="node">依序執行 Steps<small>即時串流 log</small></div>
+          </div>
+          <div class="lane">
+            <div class="lbl">Job B（平行）</div>
+            <div class="node">全新 VM</div>
+            <div class="arrow">↓</div>
+            <div class="node">依序執行 Steps<small>即時串流 log</small></div>
+          </div>
+        </div>
+        <div class="arrow">↓</div>
+        <div class="node">上傳 Artifact，回報 ✓ / ✗</div>
+        <div class="arrow">↓</div>
+        <div class="node end">VM 銷毀</div>
+      </div>
       <p>理解以下四點，大部分的行為就能推論出來：</p>
       <ul class="plain">
         <li><b>設定檔跟著 commit 走。</b>GitHub 讀的是「被 push 的那個 commit」裡的 YAML，所以改 workflow 就是改 code，可以在分支上試，不影響主線。</li>
@@ -373,6 +405,120 @@ flowchart LR
           <span class="k">name:</span> app-arm64
           <span class="k">path:</span> build/app</code></pre>
       <p>多行 shell 用 <code>run: |</code>。每個 <code>run</code> 在 Linux 上預設用 <code>bash -e</code> 執行，任何指令失敗都會讓 Step 失敗。</p>
+    </section>
+
+    <section id="windows">
+      <h2>Build Windows 執行檔</h2>
+      <p>不需要自己有 Windows 電腦或 Visual Studio。有三種做法：</p>
+      <div class="tbl">
+        <table>
+          <thead><tr><th>做法</th><th>Runner</th><th>適合</th></tr></thead>
+          <tbody>
+            <tr><td><b>A. MSVC</b>（Visual Studio 的編譯器）</td><td><code>windows-latest</code></td><td>正式發布、用到 Win32 API 或 Visual Studio 專案（<code>.sln</code>、<code>.vcxproj</code>）的程式。<span class="pill ok">建議</span></td></tr>
+            <tr><td><b>B. MinGW-w64 cross-compile</b></td><td><code>ubuntu-latest</code></td><td>可攜的 C 程式、命令列工具。跟 embedded 的 cross-compile 觀念相同，速度快、分鐘數便宜。</td></tr>
+            <tr><td><b>C. MSYS2</b></td><td><code>windows-latest</code></td><td>原本用 autotools、Makefile 在 Linux 上 build，想在真正的 Windows 上用 gcc 編譯並執行測試。</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>做法 A：MSVC 加 CMake</h3>
+      <p>Windows runner 已預裝 Visual Studio 和 CMake。CMake 的 Visual Studio generator 會自己找到編譯器，不用另外設定環境變數：</p>
+      <div class="file">.github/workflows/windows.yml</div>
+<pre><code><span class="k">name:</span> Windows build
+
+<span class="k">on:</span> [push, workflow_dispatch]
+
+<span class="k">jobs:</span>
+  <span class="k">msvc:</span>
+    <span class="k">runs-on:</span> windows-latest
+    <span class="k">steps:</span>
+      - <span class="k">uses:</span> actions/checkout@v4
+
+      - <span class="k">name:</span> Configure
+        <span class="k">run:</span> cmake -S . -B build -A x64      <span class="c"># -A Win32 for a 32-bit exe</span>
+
+      - <span class="k">name:</span> Build
+        <span class="k">run:</span> cmake --build build --config Release --parallel
+
+      - <span class="k">name:</span> Unit tests
+        <span class="k">run:</span> ctest --test-dir build -C Release --output-on-failure
+
+      - <span class="k">uses:</span> actions/upload-artifact@v4
+        <span class="k">with:</span>
+          <span class="k">name:</span> myapp-win-x64
+          <span class="k">path:</span> build/Release/myapp.exe</code></pre>
+      <p>專案是 Visual Studio 的 <code>.sln</code> 而不是 CMake 時，先用 <code>microsoft/setup-msbuild</code> 把 <code>msbuild</code> 加進 PATH：</p>
+<pre><code>      - <span class="k">uses:</span> microsoft/setup-msbuild@v2
+      - <span class="k">run:</span> msbuild myapp.sln /m /p:Configuration=Release /p:Platform=x64</code></pre>
+      <p>要直接呼叫 <code>cl.exe</code>、<code>nmake</code> 時，需要先載入 Visual Studio 的 Developer Command Prompt 環境。社群 Action <code>ilammy/msvc-dev-cmd</code> 可以做到這件事。</p>
+
+      <h3>做法 B：在 Ubuntu 上用 MinGW-w64 cross-compile</h3>
+      <p>跟編 ARM 板子的程式一樣，只是 target 換成 Windows：</p>
+<pre><code><span class="k">jobs:</span>
+  <span class="k">mingw:</span>
+    <span class="k">runs-on:</span> ubuntu-latest
+    <span class="k">steps:</span>
+      - <span class="k">uses:</span> actions/checkout@v4
+
+      - <span class="k">name:</span> Install toolchain
+        <span class="k">run:</span> sudo apt-get update &amp;&amp; sudo apt-get install -y gcc-mingw-w64-x86-64
+
+      - <span class="k">name:</span> Build
+        <span class="c"># -static: no MinGW runtime DLLs needed next to the exe</span>
+        <span class="k">run:</span> make CC=x86_64-w64-mingw32-gcc LDFLAGS=-static -j"$(nproc)"
+
+      - <span class="k">uses:</span> actions/upload-artifact@v4
+        <span class="k">with:</span>
+          <span class="k">name:</span> myapp-win-x64-mingw
+          <span class="k">path:</span> build/myapp.exe</code></pre>
+      <p>產出的 <code>.exe</code> 在 Linux 上不能直接執行。需要在 CI 裡跑測試時，可以 <code>apt-get install wine</code> 後用 <code>wine ./build/unit_tests.exe</code> 執行，或另外開一個 <code>windows-latest</code> 的 Job，用 artifact 把 exe 傳過去跑。</p>
+
+      <h3>做法 C：MSYS2</h3>
+      <p><code>msys2/setup-msys2</code> 會在 Windows runner 上裝好 MSYS2，之後的 Step 用 <code>shell: msys2 {0}</code> 執行，就像在 Linux 上一樣使用 bash、make、gcc：</p>
+<pre><code>      - <span class="k">uses:</span> msys2/setup-msys2@v2
+        <span class="k">with:</span>
+          <span class="k">msystem:</span> UCRT64
+          <span class="k">install:</span> make mingw-w64-ucrt-x86_64-gcc
+      - <span class="k">shell:</span> msys2 {0}
+        <span class="k">run:</span> make -j"$(nproc)" &amp;&amp; ./build/unit_tests.exe</code></pre>
+
+      <h3>實例：本 repo 的 SumatraPDF build</h3>
+      <p>SumatraPDF 是做法 A：Visual Studio 專案，由 bun 執行的 build script 呼叫 MSBuild。<code>.github/workflows/fork-build.yml</code> 的重點：</p>
+      <div class="tbl">
+        <table>
+          <thead><tr><th>設定</th><th>作用</th></tr></thead>
+          <tbody>
+            <tr><td><code>runs-on: windows-2025-vs2026</code></td><td>指定含 Visual Studio 2026 的 Windows 映像檔。寫死版本，避免 <code>windows-latest</code> 換版本時 build 突然壞掉。</td></tr>
+            <tr><td><code>branches: ["claude/**"]</code></td><td>只有 push 到這些分支才 build。</td></tr>
+            <tr><td><code>paths-ignore</code></td><td>只改文件（<code>docs/</code>、<code>*.md</code>）時不 build，省下時間。</td></tr>
+            <tr><td><code>concurrency</code> 加 <code>cancel-in-progress</code></td><td>同一分支連續 push 時，取消還在跑的舊 build。</td></tr>
+            <tr><td><code>oven-sh/setup-bun</code></td><td>安裝 build script 需要的 bun。</td></tr>
+            <tr><td><code>bun cmd/run-unit-tests.ts -dbg</code></td><td>Debug build 並執行 unit tests。</td></tr>
+            <tr><td><code>bun cmd/build.ts -rel</code></td><td>Release build，產出 <code>out/rel64/SumatraPDF.exe</code>。</td></tr>
+            <tr><td><code>upload-artifact</code> 加 <code>retention-days: 14</code></td><td>上傳 exe，保留 14 天。</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>下載 build 好的 exe：</p>
+      <ol class="steps">
+        <li>登入 GitHub，打開 repo 的 <b>Actions</b> 分頁。</li>
+        <li>左側選 <b>fork-build</b>，點最新一筆綠勾的執行紀錄。</li>
+        <li>頁面底部 <b>Artifacts</b> 區點 <code>SumatraPDF-rel64-&lt;commit&gt;</code>，下載的是 zip，解壓縮後就是 <code>SumatraPDF.exe</code>。</li>
+      </ol>
+
+      <h3>Windows runner 的注意事項</h3>
+      <div class="tbl">
+        <table>
+          <thead><tr><th>項目</th><th>說明</th></tr></thead>
+          <tbody>
+            <tr><td>預設 shell 是 PowerShell</td><td><code>run:</code> 在 Windows 上預設用 <code>pwsh</code>，環境變數寫法是 <code>$env:NAME</code>。想沿用 bash 語法，在 Step 加 <code>shell: bash</code>（Git Bash，已預裝）。</td></tr>
+            <tr><td>換行字元</td><td>checkout 可能把文字檔轉成 CRLF，shell script 會因此出錯。在 repo 加 <code>.gitattributes</code>，例如 <code>*.sh text eol=lf</code>。</td></tr>
+            <tr><td>速度</td><td>Windows VM 開機與編譯都比 Ubuntu 慢；private repo 的計費倍率也比較高。只需要執行檔時，做法 B 比較省。</td></tr>
+            <tr><td>Runtime DLL</td><td>MSVC 預設的 <code>/MD</code> 需要對方電腦有 Visual C++ Redistributable。要單一 exe 就能執行，改用 <code>/MT</code> 靜態連結（CMake：<code>CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded</code>）。</td></tr>
+            <tr><td>SmartScreen 警告</td><td>沒有 code signing 的 exe，從網路下載後第一次執行會出現「Windows 已保護您的電腦」。按「其他資訊 → 仍要執行」即可。正式發布要買 code signing 憑證並在 CI 簽章，憑證放在 Secret。</td></tr>
+          </tbody>
+        </table>
+      </div>
     </section>
 
     <section id="cost">
