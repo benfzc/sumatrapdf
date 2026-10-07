@@ -7894,7 +7894,7 @@ static void FlushPiece(StextPiece& piece, int blockNo, PageTextLines* out) {
 
 // one stext line as one or more pieces (split at wide gaps); soft hyphens
 // dropped, invalid runes as '?'
-static void CollectStextLine(fz_context* ctx, const fz_stext_line* line, int blockNo, PageTextLines* out) {
+static void CollectStextLine(const fz_stext_line* line, int blockNo, PageTextLines* out) {
     StextPiece piece;
     float prevRight = 0;
     for (fz_stext_char* c = line->first_char; c; c = c->next) {
@@ -7915,23 +7915,23 @@ static void CollectStextLine(fz_context* ctx, const fz_stext_line* line, int blo
         piece.box = fz_union_rect(piece.box, r);
         piece.sizeSum += c->size;
         piece.nChars++;
-        piece.nBold += (c->font && fz_font_is_bold(ctx, c->font)) ? 1 : 0;
+        piece.nBold += (c->flags & FZ_STEXT_BOLD) ? 1 : 0;
         prevRight = r.x1;
     }
     FlushPiece(piece, blockNo, out);
 }
 
-static void CollectStextBlocks(fz_context* ctx, fz_stext_block* block, int* blockNo, PageTextLines* out) {
+static void CollectStextBlocks(fz_stext_block* block, int* blockNo, PageTextLines* out) {
     for (; block; block = block->next) {
         if (block->type == FZ_STEXT_BLOCK_STRUCT && block->u.s.down) {
-            CollectStextBlocks(ctx, block->u.s.down->first_block, blockNo, out);
+            CollectStextBlocks(block->u.s.down->first_block, blockNo, out);
             continue;
         }
         if (block->type != FZ_STEXT_BLOCK_TEXT) {
             continue;
         }
         for (fz_stext_line* line = block->u.t.first_line; line; line = line->next) {
-            CollectStextLine(ctx, line, *blockNo, out);
+            CollectStextLine(line, *blockNo, out);
         }
         (*blockNo)++;
     }
@@ -7964,7 +7964,7 @@ bool EngineMupdf::ExtractTextLines(int pageNo, PageTextLines* out) {
         return false;
     }
     int blockNo = 0;
-    CollectStextBlocks(ctx, stext->first_block, &blockNo, out);
+    CollectStextBlocks(stext->first_block, &blockNo, out);
     fz_drop_stext_page(ctx, stext);
     return true;
 }
