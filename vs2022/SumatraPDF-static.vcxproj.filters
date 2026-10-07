@@ -507,6 +507,9 @@
     <ClInclude Include="..\src\shared\PalmDbReader.h">
       <Filter>src\shared</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\shared\ParagraphText.h">
+      <Filter>src\shared</Filter>
+    </ClInclude>
     <ClInclude Include="..\src\shared\PdfCad.h">
       <Filter>src\shared</Filter>
     </ClInclude>
@@ -528,6 +531,9 @@
     <ClInclude Include="..\src\shared\ProgressUpdateUI.h">
       <Filter>src\shared</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\shared\RateLimiter.h">
+      <Filter>src\shared</Filter>
+    </ClInclude>
     <ClInclude Include="..\src\shared\ReaderModel.h">
       <Filter>src\shared</Filter>
     </ClInclude>
@@ -541,6 +547,9 @@
       <Filter>src\shared</Filter>
     </ClInclude>
     <ClInclude Include="..\src\shared\TextSelection.h">
+      <Filter>src\shared</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\shared\TranslationCache.h">
       <Filter>src\shared</Filter>
     </ClInclude>
     <ClInclude Include="..\src\shared\Translations.h">
@@ -1217,6 +1226,9 @@
     <ClCompile Include="..\src\shared\PalmDbReader.cpp">
       <Filter>src\shared</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\shared\ParagraphText.cpp">
+      <Filter>src\shared</Filter>
+    </ClCompile>
     <ClCompile Include="..\src\shared\PdfCad.cpp">
       <Filter>src\shared</Filter>
     </ClCompile>
@@ -1236,6 +1248,9 @@
       <Filter>src\shared</Filter>
     </ClCompile>
     <ClCompile Include="..\src\shared\PngOptimizer.cpp">
+      <Filter>src\shared</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\shared\RateLimiter.cpp">
       <Filter>src\shared</Filter>
     </ClCompile>
     <ClCompile Include="..\src\shared\ReaderModel.cpp">
@@ -1263,6 +1278,9 @@
       <Filter>src\shared</Filter>
     </ClCompile>
     <ClCompile Include="..\src\shared\TextSelection.cpp">
+      <Filter>src\shared</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\shared\TranslationCache.cpp">
       <Filter>src\shared</Filter>
     </ClCompile>
     <ClCompile Include="..\src\shared\TranslationLangs.cpp">
@@ -1301,6 +1319,12 @@
     <ClCompile Include="..\src\shared\tests\PageRenderPolicy_ut.cpp">
       <Filter>src\shared\tests</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\shared\tests\ParagraphText_ut.cpp">
+      <Filter>src\shared\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\shared\tests\RateLimiter_ut.cpp">
+      <Filter>src\shared\tests</Filter>
+    </ClCompile>
     <ClCompile Include="..\src\shared\tests\ReadAloudHighlight_ut.cpp">
       <Filter>src\shared\tests</Filter>
     </ClCompile>
@@ -1311,6 +1335,9 @@
       <Filter>src\shared\tests</Filter>
     </ClCompile>
     <ClCompile Include="..\src\shared\tests\TextSelection_ut.cpp">
+      <Filter>src\shared\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\shared\tests\TranslationCache_ut.cpp">
       <Filter>src\shared\tests</Filter>
     </ClCompile>
     <ClCompile Include="..\src\testcode\TestApp.cpp">

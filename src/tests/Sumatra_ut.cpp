@@ -61,6 +61,9 @@ void PagePosition_UnitTests();
 void PdfSync_UnitTests();
 void CachedObjects_UnitTests();
 void PageRenderPolicy_UnitTests();
+void ParagraphText_UnitTests();
+void RateLimiter_UnitTests();
+void TranslationCache_UnitTests();
 bool PdfDarkModeImageStats_UnitTest();
 void SimpleLogTest();
 
@@ -409,6 +412,9 @@ static void DocPropertiesTest() {
 static void SumatraPDF_UnitTests() {
     CachedObjects_UnitTests();
     PageRenderPolicy_UnitTests();
+    ParagraphText_UnitTests();
+    RateLimiter_UnitTests();
+    TranslationCache_UnitTests();
     CommandPaletteModel_UnitTests();
     DocPropertiesTest();
     parseCommandsTest();

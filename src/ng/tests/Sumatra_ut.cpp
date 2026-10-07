@@ -39,6 +39,9 @@ void install_load_mac_font_funcs(fz_context* ctx);
 
 void CachedObjects_UnitTests();
 void PageRenderPolicy_UnitTests();
+void ParagraphText_UnitTests();
+void RateLimiter_UnitTests();
+void TranslationCache_UnitTests();
 void CommandPaletteModel_UnitTests();
 void ImageReader_UnitTests();
 bool RenderCache_UnitTestCookieUnlocked();
@@ -459,6 +462,9 @@ static void PageAspectViewTest() {
 void SumatraPDF_UnitTests() {
     CachedObjects_UnitTests();
     PageRenderPolicy_UnitTests();
+    ParagraphText_UnitTests();
+    RateLimiter_UnitTests();
+    TranslationCache_UnitTests();
     CommandPaletteModel_UnitTests();
     ImageReader_UnitTests();
     utassert(RenderCache_UnitTestCookieUnlocked());

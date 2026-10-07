@@ -1525,6 +1525,7 @@
     <ClInclude Include="..\src\shared\PagePosition.h" />
     <ClInclude Include="..\src\shared\PageRenderPolicy.h" />
     <ClInclude Include="..\src\shared\PalmDbReader.h" />
+    <ClInclude Include="..\src\shared\ParagraphText.h" />
     <ClInclude Include="..\src\shared\PdfCad.h" />
     <ClInclude Include="..\src\shared\PdfCreator.h" />
     <ClInclude Include="..\src\shared\PdfDarkMode.h" />
@@ -1532,11 +1533,13 @@
     <ClInclude Include="..\src\shared\PdfSync.h" />
     <ClInclude Include="..\src\shared\PrintWin11.h" />
     <ClInclude Include="..\src\shared\ProgressUpdateUI.h" />
+    <ClInclude Include="..\src\shared\RateLimiter.h" />
     <ClInclude Include="..\src\shared\ReaderModel.h" />
     <ClInclude Include="..\src\shared\SelectionHandlers.h" />
     <ClInclude Include="..\src\shared\SumatraControl.h" />
     <ClInclude Include="..\src\shared\TextSearch.h" />
     <ClInclude Include="..\src\shared\TextSelection.h" />
+    <ClInclude Include="..\src\shared\TranslationCache.h" />
     <ClInclude Include="..\src\shared\Translations.h" />
     <ClInclude Include="..\src\shared\UpdateTemp.h" />
     <ClInclude Include="..\src\shared\WebpReader.h" />
@@ -2149,6 +2152,7 @@
     <ClCompile Include="..\src\shared\PagePosition.cpp" />
     <ClCompile Include="..\src\shared\PageRenderPolicy.cpp" />
     <ClCompile Include="..\src\shared\PalmDbReader.cpp" />
+    <ClCompile Include="..\src\shared\ParagraphText.cpp" />
     <ClCompile Include="..\src\shared\PdfCad.cpp" />
     <ClCompile Include="..\src\shared\PdfDarkModeColor.cpp" />
     <ClCompile Include="..\src\shared\PdfDarkModeImageStats.cpp" />
@@ -2156,6 +2160,7 @@
     <ClCompile Include="..\src\shared\PdfDate.cpp" />
     <ClCompile Include="..\src\shared\PdfSync.cpp" />
     <ClCompile Include="..\src\shared\PngOptimizer.cpp" />
+    <ClCompile Include="..\src\shared\RateLimiter.cpp" />
     <ClCompile Include="..\src\shared\ReaderModel.cpp" />
     <ClCompile Include="..\src\shared\RefHoverDetect.cpp" />
     <ClCompile Include="..\src\shared\RefHoverInternal.cpp" />
@@ -2172,6 +2177,7 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="..\src\shared\TextSelection.cpp" />
+    <ClCompile Include="..\src\shared\TranslationCache.cpp" />
     <ClCompile Include="..\src\shared\TranslationLangs.cpp" />
     <ClCompile Include="..\src\shared\UpdateTemp.cpp" />
     <ClCompile Include="..\src\shared\WebpReader.cpp" />
@@ -2275,6 +2281,34 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Profile|ARM64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Profile x64_asan|x64'">true</ExcludedFromBuild>
     </ClCompile>
+    <ClCompile Include="..\src\shared\tests\ParagraphText_ut.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release x64_asan|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze|ARM64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze x64_asan|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Profile|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Profile|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Profile|ARM64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Profile x64_asan|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\src\shared\tests\RateLimiter_ut.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release x64_asan|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze|ARM64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze x64_asan|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Profile|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Profile|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Profile|ARM64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Profile x64_asan|x64'">true</ExcludedFromBuild>
+    </ClCompile>
     <ClCompile Include="..\src\shared\tests\ReadAloudHighlight_ut.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
@@ -2318,6 +2352,20 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Profile x64_asan|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="..\src\shared\tests\TextSelection_ut.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release x64_asan|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze|ARM64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze x64_asan|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Profile|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Profile|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Profile|ARM64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Profile x64_asan|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\src\shared\tests\TranslationCache_ut.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">true</ExcludedFromBuild>
