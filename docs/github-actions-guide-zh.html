@@ -1,0 +1,429 @@
+<title>GitHub Actions 入門手冊</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@600;900&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: single reading column with a sticky chapter index on wide screens; concept terms as a definition table, examples as annotated YAML */
+:root {
+  --bg: #f5f6f8;
+  --surface: #ffffff;
+  --ink: #1a2230;
+  --muted: #5b6678;
+  --line: #d8dde5;
+  --accent: #3d4fb8;
+  --accent-soft: #e8ebfa;
+  --ok: #2f7a4f;
+  --ok-soft: #e3f2e8;
+  --warn: #9a6a14;
+  --warn-soft: #fbf0d9;
+  --bad: #a63d3d;
+  --bad-soft: #f7e4e4;
+  --code-bg: #eef0f4;
+  --code-cmt: #6b7586;
+  --code-key: #3d4fb8;
+  --f-display: "Noto Serif TC", "Songti TC", serif;
+  --f-body: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12151c; --surface: #191e27; --ink: #e3e7ee; --muted: #9aa4b4; --line: #2b3340;
+    --accent: #9aa8f5; --accent-soft: #1f2442; --ok: #74c495; --ok-soft: #17291e;
+    --warn: #e3b25a; --warn-soft: #2e2516; --bad: #e38a8a; --bad-soft: #2e1a1a;
+    --code-bg: #212835; --code-cmt: #8590a2; --code-key: #a9b5f7;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12151c; --surface: #191e27; --ink: #e3e7ee; --muted: #9aa4b4; --line: #2b3340;
+  --accent: #9aa8f5; --accent-soft: #1f2442; --ok: #74c495; --ok-soft: #17291e;
+  --warn: #e3b25a; --warn-soft: #2e2516; --bad: #e38a8a; --bad-soft: #2e1a1a;
+  --code-bg: #212835; --code-cmt: #8590a2; --code-key: #a9b5f7;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--f-body); font-size: 16px; line-height: 1.75;
+  padding-inline: 16px; padding-block: 0 64px;
+}
+.wrap { max-width: 1080px; margin: 0 auto; display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 48px; }
+@media (max-width: 860px) { .wrap { grid-template-columns: minmax(0, 1fr); gap: 0; } nav.toc { display: none; } }
+nav.toc { position: sticky; top: env(safe-area-inset-top, 0px); align-self: start; padding-top: 48px; font-size: 14px; }
+nav.toc .lbl { font-size: 12px; letter-spacing: .12em; color: var(--muted); }
+nav.toc ol { padding-left: 1.3em; margin: 12px 0 0; display: grid; gap: 6px; color: var(--muted); }
+nav.toc a { color: var(--muted); text-decoration: none; }
+nav.toc a:hover, nav.toc a:focus-visible { color: var(--accent); }
+main { min-width: 0; }
+header.hero { padding-block: 48px 24px; border-bottom: 1px solid var(--line); }
+.eyebrow { font-family: var(--f-mono); font-size: 13px; color: var(--accent); }
+h1 { font-family: var(--f-display); font-weight: 900; font-size: clamp(30px, 6vw, 46px); line-height: 1.2; margin: 8px 0 12px; text-wrap: balance; }
+.lede { font-size: 18px; color: var(--muted); max-width: 40em; margin: 0; }
+section { padding-top: 40px; }
+h2 { font-family: var(--f-display); font-weight: 600; font-size: 26px; margin: 0 0 12px; text-wrap: balance; }
+h3 { font-size: 17px; margin: 28px 0 8px; }
+p { margin: 0 0 12px; max-width: 42em; }
+ul.plain { margin: 0 0 12px; padding-left: 1.2em; max-width: 42em; }
+code { font-family: var(--f-mono); font-size: .88em; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+pre { background: var(--code-bg); padding: 14px 16px; border-radius: 6px; overflow-x: auto; font-family: var(--f-mono); font-size: 13.5px; line-height: 1.6; margin: 8px 0 16px; }
+pre code { background: none; padding: 0; font-size: inherit; }
+pre .c { color: var(--code-cmt); }
+pre .k { color: var(--code-key); font-weight: 600; }
+.file { font-family: var(--f-mono); font-size: 12.5px; color: var(--muted); margin: 16px 0 -4px; }
+
+.tldr { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 18px 20px; margin-top: 24px; }
+.tldr .lbl { font-size: 12px; letter-spacing: .12em; color: var(--accent); font-weight: 700; }
+.tldr ul { margin: 6px 0 0; padding-left: 1.2em; }
+
+.tbl { overflow-x: auto; margin: 12px 0 20px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 14.5px; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 13px; color: var(--muted); font-weight: 500; background: var(--bg); white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+td.term { font-family: var(--f-mono); font-weight: 600; white-space: nowrap; color: var(--accent); }
+
+.uses { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; margin: 16px 0; }
+.uses div { border-top: 2px solid var(--accent); padding-top: 8px; font-size: 14.5px; min-width: 0; }
+.uses b { display: block; }
+.uses span { color: var(--muted); }
+
+ol.steps { padding-left: 1.4em; margin: 8px 0 16px; max-width: 42em; }
+ol.steps li { margin-bottom: 8px; }
+
+.pill { display: inline-block; font-size: 12px; font-weight: 700; padding: 1px 8px; border-radius: 999px; white-space: nowrap; }
+.ok { background: var(--ok-soft); color: var(--ok); }
+.warn { background: var(--warn-soft); color: var(--warn); }
+.bad { background: var(--bad-soft); color: var(--bad); }
+
+.note { border-left: 3px solid var(--accent); background: var(--accent-soft); padding: 12px 16px; border-radius: 0 6px 6px 0; margin: 16px 0; font-size: 15px; max-width: 46em; }
+.note.warn-box { border-left-color: var(--warn); background: var(--warn-soft); }
+.note p:last-child { margin-bottom: 0; }
+footer { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); }
+a { color: var(--accent); }
+</style>
+
+<div class="wrap">
+  <nav class="toc" aria-label="章節">
+    <div class="lbl">章節</div>
+    <ol>
+      <li><a href="#what">它是什麼</a></li>
+      <li><a href="#uses">能做什麼</a></li>
+      <li><a href="#terms">核心術語</a></li>
+      <li><a href="#how">運作原理</a></li>
+      <li><a href="#first">第一個 workflow</a></li>
+      <li><a href="#daily">日常操作</a></li>
+      <li><a href="#advanced">進階功能</a></li>
+      <li><a href="#embedded">Embedded 範例</a></li>
+      <li><a href="#cost">費用與限制</a></li>
+      <li><a href="#security">安全守則</a></li>
+      <li><a href="#trouble">疑難排解</a></li>
+    </ol>
+  </nav>
+
+  <main>
+    <header class="hero">
+      <div class="eyebrow">CI/CD · YAML · GitHub-hosted runner</div>
+      <h1>GitHub Actions 入門手冊</h1>
+      <p class="lede">把「編譯、測試、打包」交給 GitHub 的雲端機器自動執行。你的電腦不用裝任何 toolchain，也能產出 Windows、Linux、macOS 的執行檔。</p>
+      <div class="tldr">
+        <div class="lbl">重點</div>
+        <ul>
+          <li>在 repo 放一個 <code>.github/workflows/xxx.yml</code>，寫好「什麼時候觸發、在哪種機器上、跑哪些指令」。</li>
+          <li>每次 <code>git push</code>，GitHub 就開一台全新的 VM 照著跑，跑完 VM 銷毀。</li>
+          <li>結果（成功/失敗、完整 log、產出檔）在 repo 的 <b>Actions</b> 分頁查看與下載。</li>
+          <li>public repo 使用 GitHub 提供的標準機器免費。</li>
+        </ul>
+      </div>
+    </header>
+
+    <section id="what">
+      <h2>它是什麼</h2>
+      <p>GitHub Actions 是 GitHub 內建的 <b>CI/CD</b>（Continuous Integration / Continuous Delivery）服務。概念上就是一台「聽到 git 事件就自動執行 shell script 的遠端機器」。</p>
+      <p>對照你熟悉的做法：以前可能在一台 build server 上用 cron 加 bash 定時拉 code、跑 <code>make</code>、把 image 放到某個目錄。GitHub Actions 把這整套搬到雲端，而且機器不用自己維護、每次都是乾淨環境、log 和產出檔自動保存。</p>
+    </section>
+
+    <section id="uses">
+      <h2>能做什麼</h2>
+      <div class="uses">
+        <div><b>自動 build + test</b><span>每次 push 都編譯並跑 unit test，壞掉立刻知道是哪個 commit</span></div>
+        <div><b>跨平台編譯</b><span>沒有 Windows 或 Mac，也能產出對應平台的執行檔</span></div>
+        <div><b>PR 檢查</b><span>Pull Request 沒通過 build/test 就標紅，避免壞 code 進主線</span></div>
+        <div><b>自動發佈 release</b><span>打 git tag 就自動 build 並建立 GitHub Release，附上 binary</span></div>
+        <div><b>排程工作</b><span>nightly build、每週檢查相依套件更新</span></div>
+        <div><b>程式碼檢查</b><span>clang-format、cppcheck、shellcheck、靜態分析</span></div>
+        <div><b>Cross-compile</b><span>在 x86 runner 上用 aarch64/arm toolchain 交叉編譯，再用 QEMU 跑測試</span></div>
+        <div><b>硬體測試（HIL）</b><span>把接著開發板的機器註冊成 self-hosted runner，push 後自動燒錄並測試</span></div>
+      </div>
+    </section>
+
+    <section id="terms">
+      <h2>核心術語</h2>
+      <p>由大到小：一個 <b>Workflow</b> 由 <b>Event</b> 觸發，裡面有一或多個 <b>Job</b>，每個 Job 在一台 <b>Runner</b> 上依序執行多個 <b>Step</b>。</p>
+      <div class="tbl">
+        <table>
+          <thead><tr><th>術語</th><th>意思</th><th>類比</th></tr></thead>
+          <tbody>
+            <tr><td class="term">Workflow</td><td>一個自動化流程，即 <code>.github/workflows/</code> 下的一個 YAML 檔。一個 repo 可以有多個</td><td>一支完整的 build script</td></tr>
+            <tr><td class="term">Event</td><td>觸發 workflow 的事件，例如 <code>push</code>、<code>pull_request</code>、<code>schedule</code>、<code>workflow_dispatch</code>（手動按鈕）</td><td>cron 時間到、git hook</td></tr>
+            <tr><td class="term">Job</td><td>一組在同一台機器上執行的 Step。多個 Job 預設<b>平行</b>執行，各自在不同機器上</td><td>一個 Makefile target</td></tr>
+            <tr><td class="term">Step</td><td>Job 裡的一個步驟：執行一行 shell 指令（<code>run</code>），或呼叫一個 Action（<code>uses</code>）</td><td>script 裡的一行指令</td></tr>
+            <tr><td class="term">Runner</td><td>實際執行 Job 的機器。<b>GitHub-hosted</b> 是 GitHub 提供的 VM；<b>self-hosted</b> 是你自己的機器</td><td>build server</td></tr>
+            <tr><td class="term">Action</td><td>別人寫好、可重用的 Step，例如 <code>actions/checkout</code>（下載 repo 原始碼）</td><td>現成的 library 函式</td></tr>
+            <tr><td class="term">Artifact</td><td>Job 產出並上傳保存的檔案，例如 exe、韌體 image、測試報告，可從網頁下載</td><td>build 輸出目錄</td></tr>
+            <tr><td class="term">Secret</td><td>加密保存的密碼或 API key，在 workflow 裡以變數取用，log 中自動遮蔽</td><td>不進版控的 <code>.env</code></td></tr>
+            <tr><td class="term">Matrix</td><td>一份 Job 定義展開成多個組合，例如 {gcc, clang} × {ubuntu, windows}</td><td>巢狀 for 迴圈</td></tr>
+            <tr><td class="term">Cache</td><td>跨次執行保存的目錄（例如下載的套件、ccache），加快下次 build</td><td><code>ccache</code></td></tr>
+            <tr><td class="term">Expression</td><td><code>${{ ... }}</code> 語法，讀取 context（分支名、commit SHA、secret 等）或做條件判斷</td><td>shell 變數展開</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="how">
+      <h2>運作原理</h2>
+      <pre class="mermaid">
+flowchart LR
+    A[git push] --> B[GitHub 收到 Event]
+    B --> C[讀取該 commit 的<br/>.github/workflows/*.yml]
+    C --> D{on: 條件<br/>符合？}
+    D -- 否 --> X[不執行]
+    D -- 是 --> E[排程 Jobs]
+    E --> F1[Job A<br/>全新 VM]
+    E --> F2[Job B<br/>全新 VM]
+    F1 --> G1[依序執行 Steps<br/>即時串流 log]
+    F2 --> G2[依序執行 Steps]
+    G1 --> H[上傳 Artifact<br/>回報 ✓ / ✗]
+    G2 --> H
+    H --> I[VM 銷毀]
+      </pre>
+      <p>理解以下四點，大部分的行為就能推論出來：</p>
+      <ul class="plain">
+        <li><b>設定檔跟著 commit 走。</b>GitHub 讀的是「被 push 的那個 commit」裡的 YAML，所以改 workflow 就是改 code，可以在分支上試，不影響主線。</li>
+        <li><b>每個 Job 都是全新、乾淨的 VM。</b>上一次 build 留下的檔案不會存在，同一次執行中不同 Job 之間也不共享檔案系統。要傳遞檔案，用 Artifact 或 Cache。</li>
+        <li><b>VM 一開始是空的，連你的原始碼都沒有。</b>所以第一個 Step 幾乎都是 <code>actions/checkout</code>，把 repo 抓下來。</li>
+        <li><b>Step 依序執行，任何一步回傳非 0 的 exit code，Job 就失敗並停止</b>，跟 <code>bash -e</code> 一樣。</li>
+      </ul>
+      <p>GitHub-hosted runner 已預裝大量工具：Ubuntu 有 gcc、clang、make、cmake、python；Windows 有 Visual Studio、MSBuild；macOS 有 Xcode。缺的工具可以在 Step 裡用 <code>apt-get</code> 或 <code>choco</code> 安裝。</p>
+    </section>
+
+    <section id="first">
+      <h2>第一個 workflow</h2>
+      <p>假設有一個用 Makefile 編譯的 C 專案。以下是最小可用的設定：</p>
+      <div class="file">.github/workflows/build.yml</div>
+<pre><code><span class="k">name:</span> Build                      <span class="c"># shown in the Actions tab</span>
+
+<span class="k">on:</span>                               <span class="c"># Events that trigger this workflow</span>
+  <span class="k">push:</span>
+    <span class="k">branches:</span> [main]
+  <span class="k">pull_request:</span>
+  <span class="k">workflow_dispatch:</span>               <span class="c"># adds a manual "Run workflow" button</span>
+
+<span class="k">jobs:</span>
+  <span class="k">build:</span>                           <span class="c"># job id, any name</span>
+    <span class="k">runs-on:</span> ubuntu-latest         <span class="c"># which runner VM to use</span>
+    <span class="k">steps:</span>
+      - <span class="k">uses:</span> actions/checkout@v4   <span class="c"># fetch the repo source</span>
+
+      - <span class="k">name:</span> Compile
+        <span class="k">run:</span> make -j"$(nproc)"
+
+      - <span class="k">name:</span> Unit tests
+        <span class="k">run:</span> make test
+
+      - <span class="k">name:</span> Upload binary
+        <span class="k">uses:</span> actions/upload-artifact@v4
+        <span class="k">with:</span>
+          <span class="k">name:</span> myapp-linux-x64
+          <span class="k">path:</span> build/myapp</code></pre>
+      <h3>怎麼開始用</h3>
+      <ol class="steps">
+        <li>把上面的檔案放到 repo 的 <code>.github/workflows/build.yml</code>（路徑必須完全一樣）。</li>
+        <li><code>git add</code>、<code>git commit</code>、<code>git push</code>。</li>
+        <li>打開 GitHub 上 repo 的 <b>Actions</b> 分頁，會看到一筆執行中的紀錄（黃點），完成後變成綠勾或紅叉。</li>
+        <li>點進去選擇 Job，可以展開每個 Step 看完整的 log。</li>
+        <li>執行成功時，頁面底部的 <b>Artifacts</b> 區可以下載產出檔（zip 格式）。</li>
+      </ol>
+      <div class="note">
+        <p>YAML 用<b>縮排</b>表示層級，只能用空白、不能用 Tab。縮排錯誤是新手最常見的失敗原因。GitHub 的網頁編輯器會即時檢查語法。</p>
+      </div>
+    </section>
+
+    <section id="daily">
+      <h2>日常操作</h2>
+      <div class="tbl">
+        <table>
+          <thead><tr><th>想做的事</th><th>操作</th></tr></thead>
+          <tbody>
+            <tr><td>看 build 是否成功</td><td>Actions 分頁的列表；commit 旁邊也會出現 ✓ 或 ✗</td></tr>
+            <tr><td>看失敗原因</td><td>點紅叉的執行紀錄 → 失敗的 Job → 展開紅色的 Step。log 可以搜尋，右上角可以下載完整 log</td></tr>
+            <tr><td>重跑</td><td>執行紀錄頁右上角 <b>Re-run jobs</b>，可以只重跑失敗的 Job</td></tr>
+            <tr><td>手動觸發</td><td>workflow 要有 <code>workflow_dispatch</code>，之後在 Actions 分頁選該 workflow → <b>Run workflow</b></td></tr>
+            <tr><td>下載產出檔</td><td>執行紀錄頁底部的 <b>Artifacts</b></td></tr>
+            <tr><td>暫停某個 workflow</td><td>Actions 分頁左側選該 workflow → 右上 <b>⋯</b> → <b>Disable workflow</b>，不用刪檔案</td></tr>
+            <tr><td>設定 Secret</td><td>repo 的 <b>Settings → Secrets and variables → Actions → New repository secret</b></td></tr>
+            <tr><td>在 README 顯示狀態徽章</td><td>workflow 頁面右上 <b>⋯</b> → <b>Create status badge</b>，複製 Markdown</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="advanced">
+      <h2>進階功能</h2>
+
+      <h3>Matrix：一次測多種組合</h3>
+      <p>同一份 Job 自動展開成多個組合平行執行。下面這段會產生 2 × 2 = 4 個 Job：</p>
+<pre><code><span class="k">jobs:</span>
+  <span class="k">build:</span>
+    <span class="k">strategy:</span>
+      <span class="k">fail-fast:</span> false              <span class="c"># keep other combos running if one fails</span>
+      <span class="k">matrix:</span>
+        <span class="k">os:</span> [ubuntu-latest, windows-latest]
+        <span class="k">cc:</span> [gcc, clang]
+    <span class="k">runs-on:</span> ${{ matrix.os }}
+    <span class="k">steps:</span>
+      - <span class="k">uses:</span> actions/checkout@v4
+      - <span class="k">run:</span> make CC=${{ matrix.cc }}</code></pre>
+
+      <h3>Job 之間的相依與傳檔</h3>
+      <p>用 <code>needs</code> 讓 Job 依序執行；因為每個 Job 是不同的 VM，檔案要用 artifact 傳過去：</p>
+<pre><code><span class="k">jobs:</span>
+  <span class="k">build:</span>
+    <span class="k">runs-on:</span> ubuntu-latest
+    <span class="k">steps:</span>
+      - <span class="k">uses:</span> actions/checkout@v4
+      - <span class="k">run:</span> make
+      - <span class="k">uses:</span> actions/upload-artifact@v4
+        <span class="k">with:</span> { <span class="k">name:</span> fw, <span class="k">path:</span> build/fw.bin }
+
+  <span class="k">test:</span>
+    <span class="k">needs:</span> build                    <span class="c"># start only after build succeeds</span>
+    <span class="k">runs-on:</span> ubuntu-latest
+    <span class="k">steps:</span>
+      - <span class="k">uses:</span> actions/download-artifact@v4
+        <span class="k">with:</span> { <span class="k">name:</span> fw }
+      - <span class="k">run:</span> ./run-tests.sh fw.bin</code></pre>
+
+      <h3>Cache：加快重複 build</h3>
+      <p>常用在 ccache 目錄、下載的 toolchain 或套件。<code>key</code> 一樣就還原舊的內容：</p>
+<pre><code>      - <span class="k">uses:</span> actions/cache@v4
+        <span class="k">with:</span>
+          <span class="k">path:</span> ~/.ccache
+          <span class="k">key:</span> ccache-${{ runner.os }}-${{ github.sha }}
+          <span class="k">restore-keys:</span> ccache-${{ runner.os }}-   <span class="c"># fall back to latest prefix match</span></code></pre>
+
+      <h3>排程與條件</h3>
+<pre><code><span class="k">on:</span>
+  <span class="k">schedule:</span>
+    - <span class="k">cron:</span> "0 18 * * *"          <span class="c"># UTC; 18:00 UTC = 02:00 Taiwan time</span>
+  <span class="k">push:</span>
+    <span class="k">tags:</span> ["v*"]                   <span class="c"># run on version tags such as v1.2.0</span>
+
+<span class="k">jobs:</span>
+  <span class="k">release:</span>
+    <span class="k">if:</span> startsWith(github.ref, 'refs/tags/v')   <span class="c"># only for tag pushes</span>
+    <span class="k">runs-on:</span> ubuntu-latest
+    <span class="k">permissions:</span>
+      <span class="k">contents:</span> write              <span class="c"># needed to create a release</span>
+    <span class="k">steps:</span>
+      - <span class="k">uses:</span> actions/checkout@v4
+      - <span class="k">run:</span> make release
+      - <span class="k">run:</span> gh release create "$GITHUB_REF_NAME" build/*.tar.gz
+        <span class="k">env:</span>
+          <span class="k">GH_TOKEN:</span> ${{ github.token }}   <span class="c"># auto-provided, no setup needed</span></code></pre>
+
+      <h3>Self-hosted runner</h3>
+      <p>在自己的機器上安裝 GitHub 提供的 runner 程式（Linux、Windows、macOS 都有，也支援 ARM），註冊到 repo 後，<code>runs-on: self-hosted</code> 的 Job 就會派到這台機器。適合以下情況：</p>
+      <ul class="plain">
+        <li>需要接實體硬體：開發板、JTAG、序列埠。</li>
+        <li>build 很大，例如 Yocto，雲端 runner 的磁碟和時間不夠。</li>
+        <li>想沿用已經裝好的商用 toolchain 或授權。</li>
+      </ul>
+      <p>設定入口：repo 的 <b>Settings → Actions → Runners → New self-hosted runner</b>，頁面會給出安裝指令。</p>
+    </section>
+
+    <section id="embedded">
+      <h2>Embedded 範例：cross-compile 加 QEMU 測試</h2>
+      <p>在 x86 Ubuntu runner 上用 aarch64 toolchain 編譯，再用 <code>qemu-user</code> 直接執行 ARM64 的 unit test 執行檔，不需要開發板：</p>
+      <div class="file">.github/workflows/arm64.yml</div>
+<pre><code><span class="k">name:</span> ARM64 cross build
+
+<span class="k">on:</span> [push, workflow_dispatch]
+
+<span class="k">jobs:</span>
+  <span class="k">cross:</span>
+    <span class="k">runs-on:</span> ubuntu-latest
+    <span class="k">steps:</span>
+      - <span class="k">uses:</span> actions/checkout@v4
+
+      - <span class="k">name:</span> Install toolchain and QEMU
+        <span class="k">run:</span> |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu qemu-user
+
+      - <span class="k">name:</span> Build
+        <span class="k">run:</span> make CROSS_COMPILE=aarch64-linux-gnu- -j"$(nproc)"
+
+      - <span class="k">name:</span> Run unit tests under QEMU
+        <span class="k">run:</span> |
+          # -L points QEMU at the target sysroot for the dynamic loader
+          qemu-aarch64 -L /usr/aarch64-linux-gnu ./build/unit_tests
+
+      - <span class="k">uses:</span> actions/upload-artifact@v4
+        <span class="k">with:</span>
+          <span class="k">name:</span> app-arm64
+          <span class="k">path:</span> build/app</code></pre>
+      <p>多行 shell 用 <code>run: |</code>。每個 <code>run</code> 在 Linux 上預設用 <code>bash -e</code> 執行，任何指令失敗都會讓 Step 失敗。</p>
+    </section>
+
+    <section id="cost">
+      <h2>費用與限制</h2>
+      <div class="tbl">
+        <table>
+          <thead><tr><th>項目</th><th>規則</th></tr></thead>
+          <tbody>
+            <tr><td>public repo</td><td><span class="pill ok">免費</span> 使用標準 GitHub-hosted runner 不計費</td></tr>
+            <tr><td>private repo</td><td><span class="pill warn">有額度</span> 每月有免費分鐘數，依帳號方案而定；超過後計費或停止</td></tr>
+            <tr><td>不同 OS 的計費倍率</td><td>private repo 中 Windows 約為 Linux 的 2 倍、macOS 約 10 倍</td></tr>
+            <tr><td>單一 Job 執行時間</td><td>GitHub-hosted runner 上限 6 小時</td></tr>
+            <tr><td>Artifact 保存</td><td>預設 90 天，可以縮短</td></tr>
+            <tr><td>Self-hosted runner</td><td>GitHub 不收執行分鐘數，機器與電費自己負擔</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>數字會隨 GitHub 調整，以官方 <a href="https://docs.github.com/en/billing/managing-billing-for-github-actions/about-billing-for-github-actions">billing 文件</a>為準。</p>
+    </section>
+
+    <section id="security">
+      <h2>安全守則</h2>
+      <ul class="plain">
+        <li><b>Secret 不要寫進 YAML 或程式碼。</b>一律放在 Settings 的 Secrets，以 <code>${{ secrets.NAME }}</code> 取用。</li>
+        <li><b>Fork 送來的 PR 拿不到 Secret。</b>這是刻意的設計，避免陌生人改 workflow 把密鑰印出來。不要為了繞過這點而改用 <code>pull_request_target</code>，除非你清楚它的風險。</li>
+        <li><b>第三方 Action 鎖定版本。</b><code>@v4</code> 是會移動的 tag；要求嚴格時改用完整的 commit SHA，例如 <code>actions/checkout@&lt;40 字元 SHA&gt;</code>，避免上游被入侵時跟著中招。</li>
+        <li><b>權限最小化。</b>在 workflow 頂層加 <code>permissions: contents: read</code>，只在需要的 Job 開 <code>write</code>。</li>
+        <li><b>public repo 不要掛 self-hosted runner。</b>任何人送的 PR 都可能在你的機器上執行程式碼。</li>
+      </ul>
+    </section>
+
+    <section id="trouble">
+      <h2>疑難排解</h2>
+      <div class="tbl">
+        <table>
+          <thead><tr><th>症狀</th><th>常見原因</th><th>處理</th></tr></thead>
+          <tbody>
+            <tr><td>push 後完全沒有執行紀錄</td><td>fork 出來的 repo 預設停用 Actions；YAML 路徑不對；<code>on:</code> 的分支條件沒有包含這個分支</td><td>到 Actions 分頁啟用；確認檔案在 <code>.github/workflows/</code>；檢查 <code>branches</code></td></tr>
+            <tr><td>顯示 “Invalid workflow file”</td><td>YAML 縮排或語法錯誤</td><td>點進錯誤訊息會指出行號；用 Tab 縮排是常見原因</td></tr>
+            <tr><td>Job 一直 “Waiting for a runner”</td><td><code>runs-on</code> 的 label 打錯，或 self-hosted runner 離線</td><td>確認 label 名稱；檢查 runner 狀態</td></tr>
+            <tr><td>本機可以 build，CI 失敗</td><td>CI 是乾淨環境，缺少你本機手動裝過的套件，或依賴某個本機路徑</td><td>在 workflow 裡明確安裝相依套件；這正是 CI 幫你抓到的問題</td></tr>
+            <tr><td>log 資訊不夠</td><td>預設只顯示一般輸出</td><td>Re-run 時勾選 <b>Enable debug logging</b></td></tr>
+            <tr><td>想在 runner 上互動除錯</td><td>VM 執行結束就銷毀</td><td>在 Step 裡多印資訊，或把中間檔案上傳成 artifact 下載回來看</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="note warn-box">
+        <p>官方 Action 的主版本號（例如 <code>@v4</code>）會隨時間更新。新專案開始時，到 GitHub Marketplace 確認 <code>actions/checkout</code>、<code>actions/upload-artifact</code> 等的最新主版本。</p>
+      </div>
+    </section>
+
+    <footer>官方文件：<a href="https://docs.github.com/en/actions">docs.github.com/en/actions</a>。本頁範例中的註解為英文，可以直接複製使用。</footer>
+  </main>
+</div>
