@@ -170,6 +170,7 @@ void GroupParagraphs(const PageTextLines& lines, PageParagraphs* out) {
             VecAppend(out->boxes, box);
             VecAppend(out->fontSizes, lines.fontSizes[i]);
             VecAppend(out->bold, lines.bold[i]);
+            VecAppend(out->mono, lines.mono[i]);
             out->texts.Append(Str());
             VecAppend(paraOf, len(out->boxes) - 1);
             continue;
@@ -179,6 +180,7 @@ void GroupParagraphs(const PageTextLines& lines, PageParagraphs* out) {
             out->fontSizes[found] = lines.fontSizes[i];
         }
         out->bold[found] = out->bold[found] && lines.bold[i];
+        out->mono[found] = out->mono[found] && lines.mono[i];
         VecAppend(paraOf, found);
     }
 

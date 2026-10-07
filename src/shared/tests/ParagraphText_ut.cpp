@@ -56,6 +56,7 @@ static void AddLine(PageTextLines& l, const char* text, float x, float y, float 
     VecAppend(l.blocks, block);
     VecAppend(l.fontSizes, kSize);
     VecAppend(l.bold, false);
+    VecAppend(l.mono, false);
 }
 
 static void GroupTest() {

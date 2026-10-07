@@ -7809,6 +7809,7 @@ struct StextPiece {
     float sizeSum = 0;
     int nChars = 0;
     int nBold = 0;
+    int nMono = 0;
 };
 
 static void AppendRune(str::Builder& s, int rune) {
@@ -7834,12 +7835,14 @@ static void FlushPiece(StextPiece& piece, int blockNo, PageTextLines* out) {
         VecAppend(out->blocks, blockNo);
         VecAppend(out->fontSizes, piece.sizeSum / (float)piece.nChars);
         VecAppend(out->bold, piece.nBold * 2 > piece.nChars);
+        VecAppend(out->mono, piece.nMono * 2 > piece.nChars);
     }
     piece.text.Reset();
     piece.box = fz_empty_rect;
     piece.sizeSum = 0;
     piece.nChars = 0;
     piece.nBold = 0;
+    piece.nMono = 0;
 }
 
 // one stext line as one or more pieces (split at wide gaps); soft hyphens
@@ -7866,6 +7869,7 @@ static void CollectStextLine(const fz_stext_line* line, int blockNo, PageTextLin
         piece.sizeSum += c->size;
         piece.nChars++;
         piece.nBold += (c->flags & FZ_STEXT_BOLD) ? 1 : 0;
+        piece.nMono += (c->font && c->font->flags.is_mono) ? 1 : 0;
         prevRight = r.x1;
     }
     FlushPiece(piece, blockNo, out);

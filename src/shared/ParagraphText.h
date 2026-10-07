@@ -21,6 +21,8 @@ struct PageTextLines {
     Vec<int> blocks;
     Vec<float> fontSizes;
     Vec<bool> bold;
+    // monospaced: commands and code, kept untranslated
+    Vec<bool> mono;
 };
 
 // line pieces grouped into paragraphs (or table cells), the unit of translation
@@ -29,6 +31,7 @@ struct PageParagraphs {
     Vec<RectF> boxes;
     Vec<float> fontSizes;
     Vec<bool> bold;
+    Vec<bool> mono;
 };
 
 enum class ParagraphKind {

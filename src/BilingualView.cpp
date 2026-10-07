@@ -47,7 +47,7 @@ static const WCHAR* kFontName = L"Microsoft JhengHei UI";
 // pages after the last visible one translated ahead of time
 constexpr int kPrefetchPages = 2;
 // Chinese is denser than the Latin text it replaces: it gets at least this
-// size (at 96 dpi) and may take the blank space below its paragraph
+// size (at 96 dpi) and may take the blank space around its paragraph
 constexpr int kMinReadablePx = 13;
 // smallest font a size computation may produce
 constexpr int kMinFontPx = 8;
@@ -59,8 +59,10 @@ constexpr int kGapPx = 2;
 constexpr int kCoverPadPx = 1;
 // sum of RGB differences still treated as the page background
 constexpr int kBlankTolerance = 24;
-// a translation may grow to this many times its paragraph's height
-constexpr int kMaxSpillFactor = 3;
+// a translation may grow into blank space this many font sizes on each side
+constexpr int kMaxGrowEm = 3;
+// tight spots (table cells) may go below the readable size down to this
+constexpr int kMinTightPx = 10;
 constexpr int kStatusMargin = 6;
 constexpr int kStatusFontPx = 12;
 
@@ -70,6 +72,9 @@ constexpr COLORREF kStatusColor = RGB(0x80, 0x80, 0x80);
 struct BvPage {
     int pageNo = 0;
     PageParagraphs paras;
+    // what is sent for translation: empty for paragraphs kept as they are
+    // (commands and code in a monospaced font)
+    StrVec toTranslate;
 };
 
 // one service for the whole process: one cache file, one rate limit
@@ -151,6 +156,9 @@ static BvPage* GetPage(DisplayModel* dm, int pageNo) {
     PageTextLines lines;
     if (dm->GetEngine()->ExtractTextLines(pageNo, &lines)) {
         GroupParagraphs(lines, &p->paras);
+    }
+    for (int i = 0; i < len(p->paras.texts); i++) {
+        p->toTranslate.Append(p->paras.mono[i] ? Str() : p->paras.texts.At(i));
     }
     VecAppend(gPages, p);
     return p;
@@ -323,61 +331,164 @@ static bool IsNearColor(COLORREF a, COLORREF b) {
     return d <= kBlankTolerance;
 }
 
-// how far down from rc's bottom the page stays blank across rc's width,
-// stopping at text, a table line or a figure (or at maxY)
-static int BlankBelow(const LeftSnapshot& snap, Rect rc, COLORREF pageBg, int maxY) {
-    int x0 = std::max(rc.x, 0);
-    int x1 = std::min(rc.x + rc.dx, snap.dx);
-    int yEnd = std::min(maxY, snap.dy);
-    int y = std::max(rc.y + rc.dy, 0);
-    for (; y < yEnd; y++) {
-        for (int x = x0; x < x1; x++) {
-            if (!IsNearColor(SnapshotPixel(snap, x, y), pageBg)) {
-                return std::max(y - kGapPx - (rc.y + rc.dy), 0);
-            }
+static bool RowBlank(const LeftSnapshot& snap, int y, int x0, int x1, COLORREF bg) {
+    for (int x = x0; x < x1; x++) {
+        if (!IsNearColor(SnapshotPixel(snap, x, y), bg)) {
+            return false;
         }
     }
-    return std::max(yEnd - (rc.y + rc.dy), 0);
+    return true;
 }
 
-// Replaces one paragraph's English with its translation. The translation may
-// use the blank space below the paragraph, so Chinese can be drawn at a
-// readable size; if it still doesn't fit it's cut with an ellipsis.
-static void PaintTranslation(HDC hdc, const LeftSnapshot& snap, Str text, Rect rc, int fontPx, FontWeight weight,
-                             int pageBottom, COLORREF pageBg, COLORREF txtCol) {
+static bool ColBlank(const LeftSnapshot& snap, int x, int y0, int y1, COLORREF bg) {
+    for (int y = y0; y < y1; y++) {
+        if (!IsNearColor(SnapshotPixel(snap, x, y), bg)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// Blank area around a paragraph that its translation may use: grows right,
+// left, down and up while the page stays blank, so it stops at other text,
+// table lines, figures and translations already drawn (they are marked in the
+// snapshot). Each side grows at most a few font sizes.
+static Rect FreeRectAround(const LeftSnapshot& snap, Rect rc, COLORREF bg, Rect limit, int fontPx) {
+    limit = limit.Intersect(Rect(0, 0, snap.dx, snap.dy));
+    rc = rc.Intersect(limit);
+    if (rc.IsEmpty()) {
+        return rc;
+    }
+    int maxSide = std::max(rc.dx / 2, fontPx * kMaxGrowEm);
+    int maxDown = std::max(rc.dy * 2, fontPx * kMaxGrowEm);
+    int maxUp = std::max(rc.dy, fontPx * 2);
+
+    int x1 = rc.x + rc.dx;
+    int xEnd = std::min(limit.x + limit.dx, x1 + maxSide);
+    while (x1 < xEnd && ColBlank(snap, x1, rc.y, rc.y + rc.dy, bg)) {
+        x1++;
+    }
+    if (x1 < xEnd) {
+        x1 = std::max(x1 - kGapPx, rc.x + rc.dx);
+    }
+
+    int x0 = rc.x;
+    int xStart = std::max(limit.x, x0 - maxSide);
+    while (x0 > xStart && ColBlank(snap, x0 - 1, rc.y, rc.y + rc.dy, bg)) {
+        x0--;
+    }
+    if (x0 > xStart) {
+        x0 = std::min(x0 + kGapPx, rc.x);
+    }
+
+    int y1 = rc.y + rc.dy;
+    int yEnd = std::min(limit.y + limit.dy, y1 + maxDown);
+    while (y1 < yEnd && RowBlank(snap, y1, x0, x1, bg)) {
+        y1++;
+    }
+    if (y1 < yEnd) {
+        y1 = std::max(y1 - kGapPx, rc.y + rc.dy);
+    }
+
+    int y0 = rc.y;
+    int yStart = std::max(limit.y, y0 - maxUp);
+    while (y0 > yStart && RowBlank(snap, y0 - 1, x0, x1, bg)) {
+        y0--;
+    }
+    if (y0 > yStart) {
+        y0 = std::min(y0 + kGapPx, rc.y);
+    }
+    return Rect(x0, y0, x1 - x0, y1 - y0);
+}
+
+// claim an area of the page so later translations don't grow into it: paint
+// it, in the snapshot only, in a color far from the page background
+static void MarkUsed(LeftSnapshot& snap, Rect rc, COLORREF pageBg) {
+    int luma = GetRValue(pageBg) + GetGValue(pageBg) + GetBValue(pageBg);
+    u32 mark = luma > 3 * 128 ? 0x000000 : 0xffffff;
+    rc = rc.Intersect(Rect(0, 0, snap.dx, snap.dy));
+    for (int y = rc.y; y < rc.y + rc.dy; y++) {
+        u32* row = snap.bits + y * snap.dx;
+        for (int x = rc.x; x < rc.x + rc.dx; x++) {
+            row[x] = mark;
+        }
+    }
+}
+
+// where and at what size a translation goes, in left-half coordinates
+struct TextPlace {
+    Rect rc;
+    int px = 0;
+};
+
+// Tries, in order: the paragraph's own box, widened to the right, widened
+// both ways, then also moved up into blank space above. Each is tried from
+// startPx down to minPx; the first that fits wins.
+static bool PlaceText(HDC hdc, WStr ws, Rect rc, Rect free, int startPx, int minPx, FontWeight weight, TextPlace* out) {
+    int freeBottom = free.y + free.dy;
+    Rect candidates[] = {
+        Rect(rc.x, rc.y, rc.dx, freeBottom - rc.y),
+        Rect(rc.x, rc.y, free.x + free.dx - rc.x, freeBottom - rc.y),
+        Rect(free.x, rc.y, free.dx, freeBottom - rc.y),
+        free,
+    };
+    for (Rect c : candidates) {
+        if (c.dx <= 0 || c.dy <= 0) {
+            continue;
+        }
+        for (int px = startPx; px >= minPx; px--) {
+            int textDy = TextHeight(hdc, ws, c.dx, px, weight);
+            if (textDy > c.dy) {
+                continue;
+            }
+            // as close to the paragraph's own top as the space allows
+            int y = std::max(c.y, std::min(rc.y, freeBottom - textDy));
+            out->rc = Rect(c.x, y, c.dx, textDy);
+            out->px = px;
+            return true;
+        }
+    }
+    return false;
+}
+
+// Replaces one paragraph's English with its translation, using blank space
+// around it so Chinese can be drawn at a readable size. Only when nothing
+// fits even at a small size is the text cut with an ellipsis.
+static void PaintTranslation(HDC hdc, LeftSnapshot& snap, Str text, Rect rc, int fontPx, FontWeight weight, Rect page,
+                             COLORREF pageBg, COLORREF txtCol) {
     if (rc.dx <= 0 || rc.dy <= 0) {
         return;
     }
     TempWStr ws = ToTraditionalTemp(ToWStrTemp(text));
-    int spillLimit = std::min(pageBottom, rc.y + rc.dy * kMaxSpillFactor);
-    int maxDy = rc.dy + BlankBelow(snap, rc, pageBg, spillLimit);
-
-    // start at the source's own size (headings stay big), shrink to fit, but
-    // not below a readable minimum
-    int minPx = DpiScale(kMinReadablePx);
-    int px = limitValue(std::max(fontPx, minPx), kMinFontPx, kMaxFontPx);
-    HGDIOBJ prevFont = SelectObject(hdc, TranslationFont(px, weight));
-    int textDy = TextHeight(hdc, ws, rc.dx, px, weight);
-    while (textDy > maxDy && px > minPx) {
-        px--;
-        textDy = TextHeight(hdc, ws, rc.dx, px, weight);
+    Rect free = FreeRectAround(snap, rc, pageBg, page, std::max(fontPx, DpiScale(kMinReadablePx)));
+    if (free.IsEmpty()) {
+        free = rc;
     }
-    if (textDy > maxDy) {
-        ws = TruncateToFitTemp(hdc, ws, rc.dx, maxDy, px, weight);
-        textDy = maxDy;
+
+    int readablePx = DpiScale(kMinReadablePx);
+    int tightPx = DpiScale(kMinTightPx);
+    int startPx = limitValue(std::max(fontPx, readablePx), kMinFontPx, kMaxFontPx);
+    TextPlace place;
+    bool fits = PlaceText(hdc, ws, rc, free, startPx, readablePx, weight, &place) ||
+                PlaceText(hdc, ws, rc, free, readablePx - 1, tightPx, weight, &place);
+    if (!fits) {
+        place.px = tightPx;
+        place.rc = free;
+        ws = TruncateToFitTemp(hdc, ws, free.dx, free.dy, tightPx, weight);
     }
 
     // hide the English it replaces, and the area the translation spills into
     int dx = snap.dx;
-    Rect cover(rc.x + dx - kCoverPadPx, rc.y - kCoverPadPx, rc.dx + 2 * kCoverPadPx,
-               std::max(rc.dy, textDy) + 2 * kCoverPadPx);
+    Rect used = rc.Union(place.rc);
+    Rect cover(used.x + dx - kCoverPadPx, used.y - kCoverPadPx, used.dx + 2 * kCoverPadPx, used.dy + 2 * kCoverPadPx);
     RECT coverR = ToRECT(cover);
     HBRUSH brush = CreateSolidBrush(pageBg);
     FillRect(hdc, &coverR, brush);
     DeleteObject(brush);
+    MarkUsed(snap, used, pageBg);
 
-    RECT r = ToRECT(Rect(rc.x + dx, rc.y, rc.dx, maxDy));
-    SelectObject(hdc, TranslationFont(px, weight));
+    RECT r = ToRECT(Rect(place.rc.x + dx, place.rc.y, place.rc.dx, place.rc.dy + 1));
+    HGDIOBJ prevFont = SelectObject(hdc, TranslationFont(place.px, weight));
     SetTextColor(hdc, txtCol);
     DrawTextW(hdc, ws.s, len(ws), &r, kTextFlags);
     SelectObject(hdc, prevFont);
@@ -385,8 +496,7 @@ static void PaintTranslation(HDC hdc, const LeftSnapshot& snap, Str text, Rect r
 
 // The mirror page is the rendered page itself, so figures, tables and
 // diagrams show as they are; only translated paragraphs are replaced.
-static void PaintMirrorPage(HDC hdc, const LeftSnapshot& snap, DisplayModel* dm, PageInfo* pi, int pageNo,
-                            COLORREF txtCol) {
+static void PaintMirrorPage(HDC hdc, LeftSnapshot& snap, DisplayModel* dm, PageInfo* pi, int pageNo, COLORREF txtCol) {
     int dx = snap.dx;
     Rect visible = pi->pageOnScreen.Intersect(Rect(0, 0, snap.dx, snap.dy));
     if (visible.IsEmpty()) {
@@ -394,7 +504,6 @@ static void PaintMirrorPage(HDC hdc, const LeftSnapshot& snap, DisplayModel* dm,
     }
     BitBlt(hdc, visible.x + dx, visible.y, visible.dx, visible.dy, snap.dc, visible.x, visible.y, SRCCOPY);
     COLORREF pageBg = SnapshotPixel(snap, visible.x + 1, visible.y + 1);
-    int pageBottom = visible.y + visible.dy;
 
     BvPage* p = GetPage(dm, pageNo);
     const PageParagraphs& paras = p->paras;
@@ -414,7 +523,7 @@ static void PaintMirrorPage(HDC hdc, const LeftSnapshot& snap, DisplayModel* dm,
         sizeBox.dy = paras.fontSizes[i];
         int fontPx = (int)((float)dm->CvtToScreen(pageNo, sizeBox).dy * kFontScale);
         FontWeight weight = paras.bold[i] ? FontWeight::Bold : FontWeight::Normal;
-        PaintTranslation(hdc, snap, text, rc, fontPx, weight, pageBottom, pageBg, txtCol);
+        PaintTranslation(hdc, snap, text, rc, fontPx, weight, visible, pageBg, txtCol);
     }
 }
 
@@ -453,11 +562,11 @@ void BilingualViewPaint(MainWindow* win, HDC hdc) {
             continue;
         }
         lastVisible = pageNo;
-        TrServiceRequest(gService, pageNo, GetPage(dm, pageNo)->paras.texts, TrPriority::Visible);
+        TrServiceRequest(gService, pageNo, GetPage(dm, pageNo)->toTranslate, TrPriority::Visible);
         PaintMirrorPage(hdc, snap, dm, pi, pageNo, txtCol);
     }
     for (int pageNo = lastVisible + 1; pageNo <= lastVisible + kPrefetchPages && pageNo <= dm->PageCount(); pageNo++) {
-        TrServiceRequest(gService, pageNo, GetPage(dm, pageNo)->paras.texts, TrPriority::Prefetch);
+        TrServiceRequest(gService, pageNo, GetPage(dm, pageNo)->toTranslate, TrPriority::Prefetch);
     }
 
     TempStr status = StatusTextTemp();
