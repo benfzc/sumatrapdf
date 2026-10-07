@@ -31,8 +31,12 @@ while getopts "t:o:r:i:h" opt; do
     esac
 done
 
+# install hints:
+#   Ubuntu / WSL:  sudo apt install curl jq
+#   Git Bash:      winget install jqlang.jq   (then open a new Git Bash)
+#   macOS:         brew install jq
 for tool in curl jq; do
-    command -v "$tool" >/dev/null || { echo "missing tool: $tool" >&2; exit 1; }
+    command -v "$tool" >/dev/null || { echo "missing tool: $tool (see install hints at the top of $0)" >&2; exit 1; }
 done
 mkdir -p "$OUTDIR"
 REPORT="$OUTDIR/report.txt"

@@ -38,7 +38,20 @@
 
 - 對照模式啟用時，畫布平分左右兩半：左邊原文，右邊「鏡像頁」。鏡像頁直接套用 `DisplayModel` 的頁面座標，每段譯文畫在原文段落的 bbox 位置；用原生 Direct2D/DirectWrite 繪製。
 - 段落來源：在 `EngineBase` 新增取 block 的介面，由 `EngineMupdf` 用 `fz_stext_block` 實作。EPUB/FB2 預設也走 `EngineMupdf`，所以一併支援。block 內各行由 `src/shared/ParagraphText` 合成段落並判斷是否跳過。
-- 翻譯 provider：先只做 Google 免費端點，付費 API 之後再加；透過 provider 介面抽象。
+- 翻譯 provider：先只做 Google 翻譯的非官方免費端點（`translate.googleapis.com/translate_a/single?client=gtx`，不需 API key），付費 API 之後再加；透過 provider 介面抽象。
+- 候選 provider：Google AI Studio 免費 API key（Gemini API）。和 gtx 端點的差異：
+
+  | | gtx 端點（目前採用） | Gemini API（免費 key） |
+  |---|---|---|
+  | 性質 | 非公開端點，無文件，可能隨時改格式或封鎖 | 官方 API，有文件 |
+  | 註冊 | 不需要 | Google 帳號 + API key |
+  | 額度 | 未公開；超過回 429 + 封鎖頁，雲端 IP 直接被擋 | 公開的每分鐘、每日上限，依模型而定 |
+  | 品質 | 一般機器翻譯，常翻掉暫存器名稱與術語 | LLM，prompt 可帶術語表與不翻譯清單 |
+  | 速度 | 快 | 較慢 |
+  | 資料 | 無條款可依循 | 免費方案的輸入可能被用來改進 Google 產品；有 NDA 的文件要先確認 |
+  | 測試 | 只能在使用者的網路測 | CI 可用存在 GitHub Secrets 的 key 做整合測試 |
+
+  改用 Gemini 時要做的事：`RateLimiter` 加每日 window；新增 Gemini provider（一次送多段、要求固定格式回傳）；gtx 降為不需 key 的備用 provider。
 - 限速：`src/shared/RateLimiter`，每分鐘與每小時兩個 sliding window；服務回 429 或封鎖頁時冷卻 30s→60s→120s→240s，連續第 4 次改為暫停，等使用者手動恢復。
 - 快取：`src/shared/TranslationCache`，以 `AppendStore` 存在 `GetAppDataDirTemp()` 下的 `translations\`；key 為 SHA1(provider + 目標語言 + 段落文字)，開啟時全部載入記憶體。
 - 預設目標語言 `zh-TW`。
