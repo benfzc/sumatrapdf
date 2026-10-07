@@ -7798,6 +7798,73 @@ bool EngineMupdf::TryExtractPageText(int pageNo, PageText* out) {
     return true;
 }
 
+// one stext line as UTF-8: soft hyphens dropped, invalid runes as '?'
+static void AppendStextLine(const fz_stext_line* line, str::Builder& s) {
+    for (fz_stext_char* c = line->first_char; c; c = c->next) {
+        int rune = c->c;
+        if (rune == 0xAD) {
+            continue;
+        }
+        if (!IsUnicodeScalar(rune)) {
+            s.AppendChar('?');
+            continue;
+        }
+        char buf[FZ_UTFMAX];
+        int n = fz_runetochar(buf, rune);
+        s.Append(Str(buf, n));
+    }
+}
+
+static void CollectStextBlocks(fz_stext_block* block, PageTextBlocks* out) {
+    for (; block; block = block->next) {
+        if (block->type == FZ_STEXT_BLOCK_STRUCT && block->u.s.down) {
+            CollectStextBlocks(block->u.s.down->first_block, out);
+            continue;
+        }
+        if (block->type != FZ_STEXT_BLOCK_TEXT) {
+            continue;
+        }
+
+        VecAppend(out->boxes, ToRectF(block->bbox));
+        VecAppend(out->firstLine, len(out->lines));
+        for (fz_stext_line* line = block->u.t.first_line; line; line = line->next) {
+            str::Builder s;
+            AppendStextLine(line, s);
+            out->lines.Append(ToStrTemp(s));
+        }
+    }
+}
+
+// the page's text blocks, for showing a translation of each one in its place
+// (bilingual view). Lines are raw: no de-hyphenation, ParagraphText does that.
+bool EngineMupdf::ExtractTextBlocks(int pageNo, PageTextBlocks* out) {
+    AutoUnlockRecursiveMutex pagesScope(&pagesLock);
+    AutoUnlockMutex renderScope(&renderLock);
+    FzPageInfo* pageInfo = GetFzPageInfoLocked(this, LocationFromPageNo(pageNo), true, nullptr);
+    if (!pageInfo) {
+        return false;
+    }
+
+    auto* ctx = Ctx();
+    // see ExtractPageTextLocked() for why docLock is needed
+    AutoUnlockRecursiveMutex docScope(&docLock);
+    fz_stext_page* stext = nullptr;
+    fz_var(stext);
+    fz_stext_options opts{};
+    fz_try(ctx) {
+        stext = fz_new_stext_page_from_whole_page(ctx, pageInfo->page, &opts);
+    }
+    fz_catch(ctx) {
+        fz_report_error(ctx);
+    }
+    if (!stext) {
+        return false;
+    }
+    CollectStextBlocks(stext->first_block, out);
+    fz_drop_stext_page(ctx, stext);
+    return true;
+}
+
 void EngineMupdf::ReleaseTextExtractionThreadContext() {
     ReleasePerThreadContext(this);
 }

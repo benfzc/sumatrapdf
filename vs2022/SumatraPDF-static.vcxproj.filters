@@ -1343,6 +1343,9 @@
     <ClCompile Include="..\src\shared\tests\SimpleLog_ut.cpp">
       <Filter>src\shared\tests</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\shared\tests\TextBlocks_ut.cpp">
+      <Filter>src\shared\tests</Filter>
+    </ClCompile>
     <ClCompile Include="..\src\shared\tests\TextSelection_ut.cpp">
       <Filter>src\shared\tests</Filter>
     </ClCompile>

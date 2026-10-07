@@ -37,7 +37,7 @@
 已定案的設計決策：
 
 - 對照模式啟用時，畫布平分左右兩半：左邊原文，右邊「鏡像頁」。鏡像頁直接套用 `DisplayModel` 的頁面座標，每段譯文畫在原文段落的 bbox 位置；用原生 Direct2D/DirectWrite 繪製。
-- 段落來源：在 `EngineBase` 新增取 block 的介面，由 `EngineMupdf` 用 `fz_stext_block` 實作。EPUB/FB2 預設也走 `EngineMupdf`，所以一併支援。block 內各行由 `src/shared/ParagraphText` 合成段落並判斷是否跳過。
+- 段落來源：`EngineBase::ExtractTextBlocks()` 回傳 `PageTextBlocks`（每個 block 的 bbox 與各行文字），由 `EngineMupdf` 用 `fz_stext_block` 實作。EPUB/FB2 預設也走 `EngineMupdf`，所以一併支援。block 內各行由 `src/shared/ParagraphText` 合成段落並判斷是否跳過。
 - 翻譯 provider：先只做 Google 翻譯的非官方免費端點（`translate.googleapis.com/translate_a/single?client=gtx`，不需 API key），付費 API 之後再加；透過 provider 介面抽象。
 - 候選 provider：Google AI Studio 免費 API key（Gemini API）。和 gtx 端點的差異：
 
@@ -62,5 +62,5 @@
 
 P1 狀態：
 
-- 已完成：`fork-build.yml`、spike 實測、`RateLimiter`、`TranslationCache`、`ParagraphText`、`GoogleFreeTranslate`（請求組裝與回應解析，unit test 用實際回應當 fixture）。
-- 待辦（依序）：`EngineBase` 取 block 介面 → `TranslationService`（佇列、批次、背景執行緒）→ 鏡像頁 UI 與「切換中英對照」命令。
+- 已完成：`fork-build.yml`、spike 實測、`RateLimiter`、`TranslationCache`、`ParagraphText`、`GoogleFreeTranslate`（請求組裝與回應解析，unit test 用實際回應當 fixture）、`EngineBase::ExtractTextBlocks()`（原版與 ng 的 `EngineMupdf` 都有實作）。
+- 待辦（依序）：`TranslationService`（佇列、批次、背景執行緒）→ 鏡像頁 UI 與「切換中英對照」命令。

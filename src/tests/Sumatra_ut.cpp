@@ -64,6 +64,7 @@ void PageRenderPolicy_UnitTests();
 void GoogleFreeTranslate_UnitTests();
 void ParagraphText_UnitTests();
 void RateLimiter_UnitTests();
+void TextBlocks_UnitTests();
 void TranslationCache_UnitTests();
 bool PdfDarkModeImageStats_UnitTest();
 void SimpleLogTest();
@@ -416,6 +417,7 @@ static void SumatraPDF_UnitTests() {
     GoogleFreeTranslate_UnitTests();
     ParagraphText_UnitTests();
     RateLimiter_UnitTests();
+    TextBlocks_UnitTests();
     TranslationCache_UnitTests();
     CommandPaletteModel_UnitTests();
     DocPropertiesTest();
