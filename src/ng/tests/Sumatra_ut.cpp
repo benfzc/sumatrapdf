@@ -39,6 +39,7 @@ void install_load_mac_font_funcs(fz_context* ctx);
 
 void CachedObjects_UnitTests();
 void PageRenderPolicy_UnitTests();
+void GoogleFreeTranslate_UnitTests();
 void ParagraphText_UnitTests();
 void RateLimiter_UnitTests();
 void TranslationCache_UnitTests();
@@ -462,6 +463,7 @@ static void PageAspectViewTest() {
 void SumatraPDF_UnitTests() {
     CachedObjects_UnitTests();
     PageRenderPolicy_UnitTests();
+    GoogleFreeTranslate_UnitTests();
     ParagraphText_UnitTests();
     RateLimiter_UnitTests();
     TranslationCache_UnitTests();

@@ -62,5 +62,5 @@
 
 P1 狀態：
 
-- 已完成：`fork-build.yml`、spike 實測、`RateLimiter`、`TranslationCache`、`ParagraphText`。
-- 待辦（依序）：Google provider 與回應解析（用使用者提供的實際回應當 fixture）→ `EngineBase` 取 block 介面 → `TranslationService`（佇列、批次、背景執行緒）→ 鏡像頁 UI 與「切換中英對照」命令。
+- 已完成：`fork-build.yml`、spike 實測、`RateLimiter`、`TranslationCache`、`ParagraphText`、`GoogleFreeTranslate`（請求組裝與回應解析，unit test 用實際回應當 fixture）。
+- 待辦（依序）：`EngineBase` 取 block 介面 → `TranslationService`（佇列、批次、背景執行緒）→ 鏡像頁 UI 與「切換中英對照」命令。

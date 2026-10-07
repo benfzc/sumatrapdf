@@ -61,6 +61,7 @@ void PagePosition_UnitTests();
 void PdfSync_UnitTests();
 void CachedObjects_UnitTests();
 void PageRenderPolicy_UnitTests();
+void GoogleFreeTranslate_UnitTests();
 void ParagraphText_UnitTests();
 void RateLimiter_UnitTests();
 void TranslationCache_UnitTests();
@@ -412,6 +413,7 @@ static void DocPropertiesTest() {
 static void SumatraPDF_UnitTests() {
     CachedObjects_UnitTests();
     PageRenderPolicy_UnitTests();
+    GoogleFreeTranslate_UnitTests();
     ParagraphText_UnitTests();
     RateLimiter_UnitTests();
     TranslationCache_UnitTests();

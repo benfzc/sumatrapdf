@@ -1529,6 +1529,7 @@
     <ClInclude Include="..\src\shared\EutlTrust.h" />
     <ClInclude Include="..\src\shared\FileHistory.h" />
     <ClInclude Include="..\src\shared\FilterUtil.h" />
+    <ClInclude Include="..\src\shared\GoogleFreeTranslate.h" />
     <ClInclude Include="..\src\shared\GoogleLens.h" />
     <ClInclude Include="..\src\shared\GumboHtmlParser.h" />
     <ClInclude Include="..\src\shared\HangDetector.h" />
@@ -2159,6 +2160,7 @@
     <ClCompile Include="..\src\shared\ExifDump.cpp" />
     <ClCompile Include="..\src\shared\FileHistory.cpp" />
     <ClCompile Include="..\src\shared\FilterUtil.cpp" />
+    <ClCompile Include="..\src\shared\GoogleFreeTranslate.cpp" />
     <ClCompile Include="..\src\shared\GumboHtmlParser.cpp" />
     <ClCompile Include="..\src\shared\HtmlFormatter.cpp" />
     <ClCompile Include="..\src\shared\JxlReader.cpp" />
@@ -2242,6 +2244,20 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Profile x64_asan|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="..\src\shared\tests\EngineDjvuDec_ut.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release x64_asan|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze|ARM64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze x64_asan|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Profile|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Profile|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Profile|ARM64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Profile x64_asan|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\src\shared\tests\GoogleFreeTranslate_ut.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">true</ExcludedFromBuild>

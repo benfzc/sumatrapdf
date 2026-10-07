@@ -321,6 +321,7 @@ function sumatrapdf_files()
     "DisplayMode.*",
     "DisplayModel.*",
     "DocumentLayout.*",
+    "GoogleFreeTranslate.*",
     "PageRenderPolicy.*",
     "ParagraphText.*",
     "RateLimiter.*",

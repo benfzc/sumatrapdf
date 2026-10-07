@@ -474,6 +474,9 @@
     <ClInclude Include="..\src\shared\FilterUtil.h">
       <Filter>src\shared</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\shared\GoogleFreeTranslate.h">
+      <Filter>src\shared</Filter>
+    </ClInclude>
     <ClInclude Include="..\src\shared\GoogleLens.h">
       <Filter>src\shared</Filter>
     </ClInclude>
@@ -1202,6 +1205,9 @@
     <ClCompile Include="..\src\shared\FilterUtil.cpp">
       <Filter>src\shared</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\shared\GoogleFreeTranslate.cpp">
+      <Filter>src\shared</Filter>
+    </ClCompile>
     <ClCompile Include="..\src\shared\GumboHtmlParser.cpp">
       <Filter>src\shared</Filter>
     </ClCompile>
@@ -1311,6 +1317,9 @@
       <Filter>src\shared\tests</Filter>
     </ClCompile>
     <ClCompile Include="..\src\shared\tests\EngineDjvuDec_ut.cpp">
+      <Filter>src\shared\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\shared\tests\GoogleFreeTranslate_ut.cpp">
       <Filter>src\shared\tests</Filter>
     </ClCompile>
     <ClCompile Include="..\src\shared\tests\MobiDoc_ut.cpp">

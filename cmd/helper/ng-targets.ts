@@ -492,6 +492,7 @@ const appSources = [
   "src/ng/MarkdownToc.cpp",
   "src/ng/NavFilesInFolder.cpp",
   "src/ng/PagePosition.cpp",
+  "src/GoogleFreeTranslate.cpp",
   "src/PageRenderPolicy.cpp",
   "src/ParagraphText.cpp",
   "src/RateLimiter.cpp",
