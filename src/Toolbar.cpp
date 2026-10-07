@@ -81,6 +81,7 @@ static ToolbarButtonInfo gToolbarButtons[] = {
     {gIconNavigateForward, CmdNavigateForward, TrN("Forward")},
     {nullptr, 0, {}}, // separator
     {gIconSpeak, CmdToggleReadAloud, TrN("Read Aloud")},
+    {gIconTranslate, CmdToggleBilingualView, TrN("Bilingual View")},
     {nullptr, 0, {}}, // separator
     {gIconLayoutContinuous, CmdZoomFitWidthAndContinuous, TrN("Fit Width and Show Pages Continuously")},
     {gIconLayoutSinglePage, CmdZoomFitPageAndSinglePage, TrN("Fit a Single Page")},

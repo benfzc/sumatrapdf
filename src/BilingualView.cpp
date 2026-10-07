@@ -55,7 +55,7 @@ constexpr int kStartBodyPx = 13;
 // text never gets smaller than kMinBodyPx
 constexpr int kFitPercent = 70;
 constexpr float kShrinkStep = 0.95f;
-constexpr int kMinBodyPx = 11;
+constexpr int kMinBodyPx = 10;
 // smallest font a size computation may produce
 constexpr int kMinFontPx = 8;
 // zoom at most this high for the page image searched for blank space

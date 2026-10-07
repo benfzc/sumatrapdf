@@ -12792,6 +12792,7 @@ static LRESULT FrameOnCommand(MainWindow* win, HWND hwnd, UINT msg, WPARAM wp, L
 
         case CmdToggleBilingualView:
             BilingualViewToggle(win);
+            SetToolbarButtonCheckedState(win, CmdToggleBilingualView, BilingualViewIsOn(win));
             break;
 
         case CmdToggleReadingBarInvert:
