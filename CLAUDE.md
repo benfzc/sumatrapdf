@@ -46,7 +46,7 @@
   | 性質 | 非公開端點，無文件，可能隨時改格式或封鎖 | 官方 API，有文件 |
   | 註冊 | 不需要 | Google 帳號 + API key |
   | 額度 | 未公開；超過回 429 + 封鎖頁，雲端 IP 直接被擋 | 公開的每分鐘、每日上限，依模型而定 |
-  | 品質 | 一般機器翻譯，常翻掉暫存器名稱與術語 | LLM，prompt 可帶術語表與不翻譯清單 |
+  | 品質 | 一般機器翻譯；實測暫存器名稱、型號、單位都保留 | LLM，prompt 可帶術語表與不翻譯清單 |
   | 速度 | 快 | 較慢 |
   | 資料 | 無條款可依循 | 免費方案的輸入可能被用來改進 Google 產品；有 NDA 的文件要先確認 |
   | 測試 | 只能在使用者的網路測 | CI 可用存在 GitHub Secrets 的 key 做整合測試 |
@@ -55,8 +55,12 @@
 - 限速：`src/shared/RateLimiter`，每分鐘與每小時兩個 sliding window；服務回 429 或封鎖頁時冷卻 30s→60s→120s→240s，連續第 4 次改為暫停，等使用者手動恢復。
 - 快取：`src/shared/TranslationCache`，以 `AppendStore` 存在 `GetAppDataDirTemp()` 下的 `translations\`；key 為 SHA1(provider + 目標語言 + 段落文字)，開啟時全部載入記憶體。
 - 預設目標語言 `zh-TW`。
+- gtx 端點實測（使用者的網路）：
+  - 段落用空行（`\n\n`）分隔後一次 POST，回傳的段落數與分隔都保留，所以可以批次送。
+  - POST 40000 字元仍回 200；但只驗證了 JSON 有效，沒驗證長文是否完整翻譯，所以每次請求上限先定 5000 字元（約一頁 datasheet）。
+  - 每次延遲約 0.5～3 秒；約每 3 秒一次、連續 30 次沒被擋。預設限速每分鐘 20 次、每小時 300 次；每小時上限尚未實測。
 
 P1 狀態：
 
-- 已完成：`fork-build.yml`、`spike/google-translate-spike.sh`、`RateLimiter`、`TranslationCache`、`ParagraphText`。
-- 待辦（依序）：使用者在自己的網路跑 spike（雲端 IP 被封鎖）→ 依結果寫 Google provider 與回應解析 → `EngineBase` 取 block 介面 → `TranslationService`（佇列、批次、背景執行緒）→ 鏡像頁 UI 與「切換中英對照」命令。
+- 已完成：`fork-build.yml`、spike 實測、`RateLimiter`、`TranslationCache`、`ParagraphText`。
+- 待辦（依序）：Google provider 與回應解析（用使用者提供的實際回應當 fixture）→ `EngineBase` 取 block 介面 → `TranslationService`（佇列、批次、背景執行緒）→ 鏡像頁 UI 與「切換中英對照」命令。
