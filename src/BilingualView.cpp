@@ -239,7 +239,8 @@ static void PaintMirrorPage(HDC hdc, DisplayModel* dm, PageInfo* pi, int pageNo,
     Rect pageRc = pi->pageOnScreen;
     pageRc.x += dx;
     HBRUSH brush = CreateSolidBrush(bgCol);
-    FillRect(hdc, ToRECT(pageRc), brush);
+    RECT pageR = ToRECT(pageRc);
+    FillRect(hdc, &pageR, brush);
     DeleteObject(brush);
 
     BvPage* p = GetPage(dm, pageNo);
