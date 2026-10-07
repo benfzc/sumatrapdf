@@ -22,6 +22,7 @@
 #include "base/AppendStore.h"
 #include "base/Dict.h"
 #include "base/Http.h"
+#include "base/Pixmap.h"
 #include "base/UITask.h"
 #include "base/Win.h"
 
@@ -46,14 +47,19 @@ static const WCHAR* kFontName = L"Microsoft JhengHei UI";
 
 // pages after the last visible one translated ahead of time
 constexpr int kPrefetchPages = 2;
-// Chinese is denser than the Latin text it replaces: it gets at least this
-// size (at 96 dpi) and may take the blank space right of and below its
-// paragraph. Never smaller, so text of one kind has one size on the page.
-constexpr int kMinReadablePx = 13;
+// All translations of a page are scaled from their source font size by one
+// factor, so headings, body text and tables keep their relative sizes. It
+// starts where body text is this size (at 96 dpi)...
+constexpr int kStartBodyPx = 13;
+// ...and shrinks a step at a time until this share of paragraphs fit, but body
+// text never gets smaller than kMinBodyPx
+constexpr int kFitPercent = 70;
+constexpr float kShrinkStep = 0.95f;
+constexpr int kMinBodyPx = 11;
 // smallest font a size computation may produce
 constexpr int kMinFontPx = 8;
-// a translation's first font size: the source font size times this
-constexpr float kFontScale = 1.0f;
+// zoom at most this high for the page image searched for blank space
+constexpr float kMaxMapZoom = 2.0f;
 // space kept between a translation and whatever is below it
 constexpr int kGapPx = 2;
 // the box hiding the English is this much larger on every side
@@ -67,6 +73,22 @@ constexpr int kStatusFontPx = 12;
 
 constexpr COLORREF kStatusColor = RGB(0x80, 0x80, 0x80);
 
+// Translations of a page as laid out at one zoom. Rectangles are screen
+// pixels relative to the page's top-left corner.
+struct BvLayout {
+    bool valid = false;
+    float zoom = 0;
+    int rotation = 0;
+    // English to hide: the paragraph and the space its translation takes
+    Vec<Rect> covers;
+    Vec<Rect> boxes;
+    Vec<int> fontPx;
+    Vec<bool> bold;
+    StrVec texts;
+    // the whole translation of a text cut with an ellipsis, else empty
+    StrVec fullTexts;
+};
+
 // paragraphs of one page, extracted once
 struct BvPage {
     int pageNo = 0;
@@ -74,6 +96,7 @@ struct BvPage {
     // what is sent for translation: empty for paragraphs kept as they are
     // (commands and code in a monospaced font)
     StrVec toTranslate;
+    BvLayout layout;
 };
 
 // one service for the whole process: one cache file, one rate limit
@@ -303,8 +326,7 @@ static TempStr StatusTextTemp() {
     return {};
 }
 
-// Copy of the left half (the document as rendered). The mirror pages are
-// copied from it, and it tells where the page is blank below a paragraph.
+// Copy of the left half (the document as rendered), source of the mirror pages
 struct LeftSnapshot {
     HDC dc = nullptr;
     HBITMAP bmp = nullptr;
@@ -349,9 +371,38 @@ static void FreeSnapshot(LeftSnapshot* snap) {
     }
 }
 
-static COLORREF SnapshotPixel(const LeftSnapshot& snap, int x, int y) {
-    u32 v = snap.bits[y * snap.dx + x];
+static COLORREF PixelColor(u32 v) {
     return RGB((v >> 16) & 0xff, (v >> 8) & 0xff, v & 0xff);
+}
+
+static COLORREF SnapshotPixel(const LeftSnapshot& snap, int x, int y) {
+    return PixelColor(snap.bits[y * snap.dx + x]);
+}
+
+// The whole page rendered off-screen, searched for blank space. Unlike the
+// screen it covers the parts scrolled out of view, so a page is laid out once.
+struct PageMap {
+    Vec<u32> bits; // top-down 0xAARRGGBB rows of dx pixels
+    int dx = 0;
+    int dy = 0;
+    COLORREF bg = 0;
+};
+
+static bool RenderPageMap(DisplayModel* dm, int pageNo, float zoom, PageMap* map) {
+    RenderPageArgs args(pageNo, zoom, dm->GetRotation());
+    Pixmap* px = PixmapToBgra(dm->GetEngine()->RenderPage(args));
+    if (!px) {
+        return false;
+    }
+    map->dx = px->width;
+    map->dy = px->height;
+    VecResize(map->bits, map->dx * map->dy);
+    for (int y = 0; y < map->dy; y++) {
+        memcpy(map->bits.els + y * map->dx, px->data + y * px->stride, map->dx * sizeof(u32));
+    }
+    FreePixmap(px);
+    map->bg = map->dx > 0 && map->dy > 0 ? PixelColor(map->bits[0]) : RGB(0xff, 0xff, 0xff);
+    return map->dx > 0 && map->dy > 0;
 }
 
 static bool IsNearColor(COLORREF a, COLORREF b) {
@@ -360,18 +411,22 @@ static bool IsNearColor(COLORREF a, COLORREF b) {
     return d <= kBlankTolerance;
 }
 
-static bool RowBlank(const LeftSnapshot& snap, int y, int x0, int x1, COLORREF bg) {
+static bool IsBlank(const PageMap& map, int x, int y) {
+    return IsNearColor(PixelColor(map.bits[y * map.dx + x]), map.bg);
+}
+
+static bool RowBlank(const PageMap& map, int y, int x0, int x1) {
     for (int x = x0; x < x1; x++) {
-        if (!IsNearColor(SnapshotPixel(snap, x, y), bg)) {
+        if (!IsBlank(map, x, y)) {
             return false;
         }
     }
     return true;
 }
 
-static bool ColBlank(const LeftSnapshot& snap, int x, int y0, int y1, COLORREF bg) {
+static bool ColBlank(const PageMap& map, int x, int y0, int y1) {
     for (int y = y0; y < y1; y++) {
-        if (!IsNearColor(SnapshotPixel(snap, x, y), bg)) {
+        if (!IsBlank(map, x, y)) {
             return false;
         }
     }
@@ -380,11 +435,10 @@ static bool ColBlank(const LeftSnapshot& snap, int x, int y0, int y1, COLORREF b
 
 // Blank area right of and below a paragraph that its translation may use:
 // grows while the page stays blank, so it stops at other text, table lines,
-// figures and translations already drawn (they are marked in the snapshot).
+// figures and translations already placed (they are marked in the map).
 // Never left or up, so translations keep the paragraph's left edge and top.
-static Rect FreeRectAround(const LeftSnapshot& snap, Rect rc, COLORREF bg, Rect limit, int fontPx) {
-    limit = limit.Intersect(Rect(0, 0, snap.dx, snap.dy));
-    rc = rc.Intersect(limit);
+static Rect FreeRectAround(const PageMap& map, Rect rc, int fontPx) {
+    rc = rc.Intersect(Rect(0, 0, map.dx, map.dy));
     if (rc.IsEmpty()) {
         return rc;
     }
@@ -392,8 +446,8 @@ static Rect FreeRectAround(const LeftSnapshot& snap, Rect rc, COLORREF bg, Rect 
     int maxDown = std::max(rc.dy * 2, fontPx * kMaxGrowEm);
 
     int x1 = rc.x + rc.dx;
-    int xEnd = std::min(limit.x + limit.dx, x1 + maxRight);
-    while (x1 < xEnd && ColBlank(snap, x1, rc.y, rc.y + rc.dy, bg)) {
+    int xEnd = std::min(map.dx, x1 + maxRight);
+    while (x1 < xEnd && ColBlank(map, x1, rc.y, rc.y + rc.dy)) {
         x1++;
     }
     if (x1 < xEnd) {
@@ -401,8 +455,8 @@ static Rect FreeRectAround(const LeftSnapshot& snap, Rect rc, COLORREF bg, Rect 
     }
 
     int y1 = rc.y + rc.dy;
-    int yEnd = std::min(limit.y + limit.dy, y1 + maxDown);
-    while (y1 < yEnd && RowBlank(snap, y1, rc.x, x1, bg)) {
+    int yEnd = std::min(map.dy, y1 + maxDown);
+    while (y1 < yEnd && RowBlank(map, y1, rc.x, x1)) {
         y1++;
     }
     if (y1 < yEnd) {
@@ -412,13 +466,13 @@ static Rect FreeRectAround(const LeftSnapshot& snap, Rect rc, COLORREF bg, Rect 
 }
 
 // claim an area of the page so later translations don't grow into it: paint
-// it, in the snapshot only, in a color far from the page background
-static void MarkUsed(LeftSnapshot& snap, Rect rc, COLORREF pageBg) {
-    int luma = GetRValue(pageBg) + GetGValue(pageBg) + GetBValue(pageBg);
+// it in a color far from the page background
+static void MarkUsed(PageMap& map, Rect rc) {
+    int luma = GetRValue(map.bg) + GetGValue(map.bg) + GetBValue(map.bg);
     u32 mark = luma > 3 * 128 ? 0x000000 : 0xffffff;
-    rc = rc.Intersect(Rect(0, 0, snap.dx, snap.dy));
+    rc = rc.Intersect(Rect(0, 0, map.dx, map.dy));
     for (int y = rc.y; y < rc.y + rc.dy; y++) {
-        u32* row = snap.bits + y * snap.dx;
+        u32* row = map.bits.els + y * map.dx;
         for (int x = rc.x; x < rc.x + rc.dx; x++) {
             row[x] = mark;
         }
@@ -443,52 +497,192 @@ static bool PlaceText(HDC hdc, WStr ws, Rect rc, Rect free, int px, FontWeight w
     return false;
 }
 
-// Replaces one paragraph's English with its translation. The font size
-// depends only on the source font size, so all body text of a page has one
-// size; text that doesn't fit is cut with an ellipsis and shown in full on
-// hover.
-static void PaintTranslation(HDC hdc, LeftSnapshot& snap, Str text, Rect rc, int fontPx, FontWeight weight, Rect page,
-                             COLORREF pageBg, COLORREF txtCol) {
-    if (rc.dx <= 0 || rc.dy <= 0) {
+// translated paragraphs of a page, ready to lay out
+struct LayoutInput {
+    // screen pixels relative to the page's top-left
+    Vec<Rect> boxes;
+    // the same in page map pixels
+    Vec<Rect> mapBoxes;
+    // source font size in screen pixels
+    Vec<float> srcPx;
+    Vec<bool> bold;
+    // Traditional Chinese, in the temp arena
+    Vec<WStr> texts;
+    // screen pixels per page map pixel
+    float scale = 1;
+};
+
+enum class PassMode {
+    Measure,
+    Commit,
+};
+
+static Rect MapToScreen(Rect rc, float scale) {
+    int x0 = (int)((float)rc.x * scale);
+    int y0 = (int)((float)rc.y * scale);
+    int x1 = (int)((float)(rc.x + rc.dx) * scale);
+    int y1 = (int)((float)(rc.y + rc.dy) * scale);
+    return Rect(x0, y0, x1 - x0, y1 - y0);
+}
+
+static Rect ScreenToMap(Rect rc, float scale) {
+    int x0 = (int)floorf((float)rc.x / scale);
+    int y0 = (int)floorf((float)rc.y / scale);
+    int x1 = (int)ceilf((float)(rc.x + rc.dx) / scale);
+    int y1 = (int)ceilf((float)(rc.y + rc.dy) / scale);
+    return Rect(x0, y0, x1 - x0, y1 - y0);
+}
+
+// Places every paragraph with font sizes scaled by fontScale, in reading
+// order, each taking the blank space the ones before it left. Returns how
+// many fit without an ellipsis. Commit also cuts the rest and fills out.
+static int LayoutPass(HDC hdc, const LayoutInput& in, const PageMap& srcMap, float fontScale, PassMode mode,
+                      BvLayout* out) {
+    PageMap map = srcMap;
+    int nFit = 0;
+    for (int i = 0; i < len(in.boxes); i++) {
+        Rect rc = in.boxes[i];
+        int px = limitValue((int)(in.srcPx[i] * fontScale + 0.5f), kMinFontPx, kMaxFontPx);
+        FontWeight weight = in.bold[i] ? FontWeight::Bold : FontWeight::Normal;
+
+        // blank space found in the map, in screen pixels; at least the paragraph
+        Rect free = MapToScreen(FreeRectAround(map, in.mapBoxes[i], (int)((float)px / in.scale)), in.scale);
+        free = Rect::FromXY(rc.x, rc.y, std::max(free.x + free.dx, rc.x + rc.dx),
+                            std::max(free.y + free.dy, rc.y + rc.dy));
+
+        WStr ws = in.texts[i];
+        Rect place;
+        bool fits = PlaceText(hdc, ws, rc, free, px, weight, &place);
+        if (fits) {
+            nFit++;
+        } else {
+            place = free;
+        }
+        Rect used = rc.Union(place);
+        MarkUsed(map, ScreenToMap(used, in.scale));
+        if (mode == PassMode::Measure) {
+            continue;
+        }
+
+        TempWStr shown = fits ? ws : TruncateToFitTemp(hdc, ws, place.dx, place.dy, px, weight);
+        VecAppend(out->covers, used);
+        VecAppend(out->boxes, place);
+        VecAppend(out->fontPx, px);
+        VecAppend(out->bold, in.bold[i]);
+        out->texts.Append(ToUtf8Temp(shown));
+        out->fullTexts.Append(fits ? Str() : ToUtf8Temp(ws));
+    }
+    return nFit;
+}
+
+// font size of most of the text: the one with the most characters
+static float BodyFontPx(const LayoutInput& in) {
+    float best = 0;
+    int bestChars = -1;
+    for (int i = 0; i < len(in.srcPx); i++) {
+        int chars = 0;
+        for (int j = 0; j < len(in.srcPx); j++) {
+            if (fabsf(in.srcPx[j] - in.srcPx[i]) < 0.5f) {
+                chars += len(in.texts[j]);
+            }
+        }
+        if (chars > bestChars) {
+            bestChars = chars;
+            best = in.srcPx[i];
+        }
+    }
+    return best;
+}
+
+static void ResetLayout(BvLayout* l) {
+    VecReset(l->covers);
+    VecReset(l->boxes);
+    VecReset(l->fontPx);
+    VecReset(l->bold);
+    l->texts.Reset();
+    l->fullTexts.Reset();
+    l->valid = false;
+}
+
+// Lays out a whole page at once: one font scale for all its translations,
+// the largest at which kFitPercent of them fit (body text kMinBodyPx at least).
+//
+//   source sizes   heading 16  body 12  table 11   (screen px)
+//   start          heading 17  body 13  table 12   (body at kStartBodyPx)
+//   6 of 20 don't fit: shrink every size by kShrinkStep and try again
+static void LayoutPage(HDC hdc, DisplayModel* dm, BvPage* p, PageInfo* pi) {
+    BvLayout* l = &p->layout;
+    ResetLayout(l);
+    int pageNo = p->pageNo;
+    l->zoom = dm->GetZoomReal(pageNo);
+    l->rotation = dm->GetRotation();
+    l->valid = true;
+
+    if (l->zoom <= 0) {
         return;
     }
-    TempWStr ws = ToTraditionalTemp(ToWStrTemp(text));
-    int px = limitValue(std::max(fontPx, DpiScale(kMinReadablePx)), kMinFontPx, kMaxFontPx);
-    Rect free = FreeRectAround(snap, rc, pageBg, page, px);
-    if (free.IsEmpty()) {
+    float mapZoom = std::min(l->zoom, kMaxMapZoom);
+    PageMap map;
+    if (!RenderPageMap(dm, pageNo, mapZoom, &map)) {
         return;
     }
 
-    Rect place;
-    if (!PlaceText(hdc, ws, rc, free, px, weight, &place)) {
-        // widest box the blank space allows, from the paragraph's top
-        place = Rect(rc.x, rc.y, free.x + free.dx - rc.x, free.y + free.dy - rc.y);
-        TempWStr full = ws;
-        ws = TruncateToFitTemp(hdc, ws, place.dx, place.dy, px, weight);
-        VecAppend(gHoverRects, Rect(place.x + snap.dx, place.y, place.dx, place.dy));
-        gHoverTexts.Append(ToUtf8Temp(full));
+    LayoutInput in;
+    in.scale = l->zoom / mapZoom;
+    EngineBase* engine = dm->GetEngine();
+    PointF mapOrigin = engine->Transform(dm->PageMediaBoxForLayout(pageNo), pageNo, mapZoom, l->rotation).TL();
+    Point pageOrigin = pi->pageOnScreen.TL();
+    const PageParagraphs& paras = p->paras;
+    for (int i = 0; i < len(paras.boxes); i++) {
+        TempStr text;
+        // skipped (values, register names) and failed paragraphs keep the
+        // original text
+        if (TrServiceGet(gService, pageNo, i, &text) != TrState::Done) {
+            continue;
+        }
+        Rect rc = dm->CvtToScreen(pageNo, paras.boxes[i]);
+        rc.Offset(-pageOrigin.x, -pageOrigin.y);
+        RectF mapRc = engine->Transform(paras.boxes[i], pageNo, mapZoom, l->rotation);
+        mapRc.Offset(-mapOrigin.x, -mapOrigin.y);
+
+        VecAppend(in.boxes, rc);
+        VecAppend(in.mapBoxes, mapRc.Round());
+        VecAppend(in.srcPx, paras.fontSizes[i] * l->zoom);
+        VecAppend(in.bold, paras.bold[i]);
+        VecAppend(in.texts, (WStr)ToTraditionalTemp(ToWStrTemp(text)));
+    }
+    int n = len(in.boxes);
+    if (n == 0) {
+        return;
     }
 
-    // hide the English it replaces, and the area the translation spills into
-    int dx = snap.dx;
-    Rect used = rc.Union(place);
-    Rect cover(used.x + dx - kCoverPadPx, used.y - kCoverPadPx, used.dx + 2 * kCoverPadPx, used.dy + 2 * kCoverPadPx);
-    RECT coverR = ToRECT(cover);
-    HBRUSH brush = CreateSolidBrush(pageBg);
-    FillRect(hdc, &coverR, brush);
-    DeleteObject(brush);
-    MarkUsed(snap, used, pageBg);
+    float body = std::max(BodyFontPx(in), 1.0f);
+    float scale = std::max(1.0f, (float)DpiScale(kStartBodyPx) / body);
+    float minScale = std::min(scale, (float)DpiScale(kMinBodyPx) / body);
+    while (scale > minScale) {
+        int nFit = LayoutPass(hdc, in, map, scale, PassMode::Measure, nullptr);
+        if (nFit * 100 >= n * kFitPercent) {
+            break;
+        }
+        scale = std::max(minScale, scale * kShrinkStep);
+    }
+    LayoutPass(hdc, in, map, scale, PassMode::Commit, l);
+}
 
-    RECT r = ToRECT(Rect(place.x + dx, place.y, place.dx, place.dy + 1));
-    HGDIOBJ prevFont = SelectObject(hdc, TranslationFont(px, weight));
-    SetTextColor(hdc, txtCol);
-    DrawTextW(hdc, ws.s, len(ws), &r, kTextFlags);
-    SelectObject(hdc, prevFont);
+static bool PageTranslated(BvPage* p) {
+    for (int i = 0; i < len(p->paras.boxes); i++) {
+        if (TrServiceGet(gService, p->pageNo, i, nullptr) == TrState::Pending) {
+            return false;
+        }
+    }
+    return true;
 }
 
 // The mirror page is the rendered page itself, so figures, tables and
-// diagrams show as they are; only translated paragraphs are replaced.
-static void PaintMirrorPage(HDC hdc, LeftSnapshot& snap, DisplayModel* dm, PageInfo* pi, int pageNo, COLORREF txtCol) {
+// diagrams show as they are. Once all of a page is translated, its
+// translated paragraphs are replaced, all at once.
+static void PaintMirrorPage(HDC hdc, const LeftSnapshot& snap, DisplayModel* dm, PageInfo* pi, int pageNo,
+                            COLORREF txtCol) {
     int dx = snap.dx;
     Rect visible = pi->pageOnScreen.Intersect(Rect(0, 0, snap.dx, snap.dy));
     if (visible.IsEmpty()) {
@@ -498,25 +692,41 @@ static void PaintMirrorPage(HDC hdc, LeftSnapshot& snap, DisplayModel* dm, PageI
     COLORREF pageBg = SnapshotPixel(snap, visible.x + 1, visible.y + 1);
 
     BvPage* p = GetPage(dm, pageNo);
-    const PageParagraphs& paras = p->paras;
-    for (int i = 0; i < len(paras.boxes); i++) {
-        TempStr text;
-        // pending, skipped (values, register names) and failed paragraphs
-        // keep the original text
-        if (TrServiceGet(gService, pageNo, i, &text) != TrState::Done) {
-            continue;
-        }
-        Rect rc = dm->CvtToScreen(pageNo, paras.boxes[i]);
-        if (rc.Intersect(visible).IsEmpty()) {
-            continue;
-        }
-        // the source font size in screen pixels at the current zoom
-        RectF sizeBox = paras.boxes[i];
-        sizeBox.dy = paras.fontSizes[i];
-        int fontPx = (int)((float)dm->CvtToScreen(pageNo, sizeBox).dy * kFontScale);
-        FontWeight weight = paras.bold[i] ? FontWeight::Bold : FontWeight::Normal;
-        PaintTranslation(hdc, snap, text, rc, fontPx, weight, visible, pageBg, txtCol);
+    if (!PageTranslated(p)) {
+        return;
     }
+    BvLayout* l = &p->layout;
+    bool stale = !l->valid || l->zoom != dm->GetZoomReal(pageNo) || l->rotation != dm->GetRotation();
+    if (stale) {
+        LayoutPage(hdc, dm, p, pi);
+    }
+
+    // layout rectangles are relative to the page; the mirror is dx to the right
+    Point org(pi->pageOnScreen.x + dx, pi->pageOnScreen.y);
+    HBRUSH brush = CreateSolidBrush(pageBg);
+    SetTextColor(hdc, txtCol);
+    for (int i = 0; i < len(l->boxes); i++) {
+        Rect cover = l->covers[i];
+        cover.Offset(org.x, org.y);
+        cover.Inflate(kCoverPadPx, kCoverPadPx);
+        RECT coverR = ToRECT(cover);
+        FillRect(hdc, &coverR, brush);
+
+        Rect box = l->boxes[i];
+        box.Offset(org.x, org.y);
+        FontWeight weight = l->bold[i] ? FontWeight::Bold : FontWeight::Normal;
+        HGDIOBJ prevFont = SelectObject(hdc, TranslationFont(l->fontPx[i], weight));
+        TempWStr ws = ToWStrTemp(l->texts.At(i));
+        RECT r = ToRECT(Rect(box.x, box.y, box.dx, box.dy + 1));
+        DrawTextW(hdc, ws.s, len(ws), &r, kTextFlags);
+        SelectObject(hdc, prevFont);
+
+        if (len(l->fullTexts.At(i)) > 0) {
+            VecAppend(gHoverRects, box);
+            gHoverTexts.Append(l->fullTexts.At(i));
+        }
+    }
+    DeleteObject(brush);
 }
 
 // Paints the right half of the canvas and queues translation of the visible
@@ -540,12 +750,16 @@ void BilingualViewPaint(MainWindow* win, HDC hdc) {
 
     // the right half: canvas background, also hiding a zoomed-in page that
     // spilled over from the left
-    RECT right = ToRECT(Rect(dx, 0, win->canvasRc.dx - dx, dy));
+    Rect rightRc(dx, 0, win->canvasRc.dx - dx, dy);
+    RECT right = ToRECT(rightRc);
     HBRUSH brush = CreateSolidBrush(bgCol);
     FillRect(hdc, &right, brush);
     DeleteObject(brush);
 
-    int oldBkMode = SetBkMode(hdc, TRANSPARENT);
+    // a page scrolled sideways must not spill into the left half
+    int savedDc = SaveDC(hdc);
+    IntersectClipRect(hdc, right.left, right.top, right.right, right.bottom);
+    SetBkMode(hdc, TRANSPARENT);
     ResetHover(win);
     TrServiceNewGeneration(gService);
     int lastVisible = 0;
@@ -567,6 +781,6 @@ void BilingualViewPaint(MainWindow* win, HDC hdc) {
         int margin = DpiScale(kStatusMargin);
         DrawStatus(hdc, status, Rect(dx + margin, margin, dx - 2 * margin, DpiScale(kStatusFontPx) * 3));
     }
-    SetBkMode(hdc, oldBkMode);
+    RestoreDC(hdc, savedDc);
     FreeSnapshot(&snap);
 }
