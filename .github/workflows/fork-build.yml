@@ -1,0 +1,57 @@
+# Fork-only CI: build and test on a GitHub-hosted Windows runner.
+# The upstream build.yml uses -ci mode, which needs upstream upload secrets
+# and always fails on this fork.
+name: fork-build
+on:
+  push:
+    branches: ["claude/**"]
+    # doc-only pushes don't need a 40 minute Windows build
+    paths-ignore: ["docs/**", "**.md"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  # a newer push to the same branch supersedes the running build
+  group: fork-build-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  windows:
+    name: Windows x64 debug tests + release
+    runs-on: windows-2025-vs2026
+    timeout-minutes: 120
+    steps:
+      - name: Check out source code
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          # needed to calc build number via git log --oneline
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+
+      # builds out/dbg64/SumatraPDF.exe and runs its -unit-tests;
+      # output is captured in out/dbg64/unit-tests-dbg.txt
+      - name: Debug build + unit tests
+        run: bun cmd/run-unit-tests.ts -dbg
+
+      - name: Release build
+        run: bun cmd/build.ts -rel
+
+      # libsumatrapdf.dll and the other helpers are embedded in the exe
+      - name: Upload release exe
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: SumatraPDF-rel64-${{ github.sha }}
+          path: out/rel64/SumatraPDF.exe
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload unit test log
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: unit-tests-log
+          path: out/dbg64/unit-tests-dbg.txt
+          if-no-files-found: ignore
+          retention-days: 7
