@@ -7,6 +7,9 @@
 
 // shortest run of letters that counts as an ordinary word ("the", "PLL" is not)
 constexpr int kMinWordLen = 3;
+// a piece continues the paragraph above it if the vertical gap is below this
+// many font sizes: line spacing in a paragraph, not cell padding in a table
+constexpr float kMaxLineGapEm = 0.6f;
 
 static bool IsSpace(char c) {
     return c == ' ' || c == '\t' || c == '\r' || c == '\n';
@@ -128,4 +131,65 @@ ParagraphKind ClassifyParagraph(Str text) {
         }
     }
     return ParagraphKind::Skip;
+}
+
+static bool OverlapsX(const RectF& a, const RectF& b) {
+    return a.x < b.x + b.dx && b.x < a.x + a.dx;
+}
+
+// Groups line pieces into paragraphs. A piece joins an open paragraph of the
+// same layout block that it horizontally overlaps and sits right below;
+// otherwise it starts a new one. Table cells (pieces side by side) thus stay
+// apart, while the lines of one cell are joined:
+//
+//   | PeriphID | Serial engine peripheral |   -> "PeriphID", "Serial engine
+//   |          | to configure.            |       peripheral to configure."
+//   | Mode     | Macro of FIFO modes.     |   -> "Mode", "Macro of FIFO modes."
+void GroupParagraphs(const PageTextLines& lines, PageParagraphs* out) {
+    int n = len(lines.texts);
+    Vec<int> paraOf; // paragraph index of each piece
+    Vec<int> paraBlock;
+    for (int i = 0; i < n; i++) {
+        const RectF& box = lines.boxes[i];
+        float maxGap = lines.fontSizes[i] * kMaxLineGapEm;
+
+        int found = -1;
+        for (int p = len(out->boxes) - 1; p >= 0 && found < 0; p--) {
+            if (paraBlock[p] != lines.blocks[i]) {
+                break;
+            }
+            const RectF& pb = out->boxes[p];
+            float gap = box.y - (pb.y + pb.dy);
+            if (OverlapsX(box, pb) && gap >= -maxGap && gap <= maxGap) {
+                found = p;
+            }
+        }
+
+        if (found < 0) {
+            VecAppend(paraBlock, lines.blocks[i]);
+            VecAppend(out->boxes, box);
+            VecAppend(out->fontSizes, lines.fontSizes[i]);
+            VecAppend(out->bold, lines.bold[i]);
+            out->texts.Append(Str());
+            VecAppend(paraOf, len(out->boxes) - 1);
+            continue;
+        }
+        out->boxes[found] = out->boxes[found].Union(box);
+        if (lines.fontSizes[i] > out->fontSizes[found]) {
+            out->fontSizes[found] = lines.fontSizes[i];
+        }
+        out->bold[found] = out->bold[found] && lines.bold[i];
+        VecAppend(paraOf, found);
+    }
+
+    // join each paragraph's lines in reading order
+    for (int p = 0; p < len(out->boxes); p++) {
+        StrVec paraLines;
+        for (int i = 0; i < n; i++) {
+            if (paraOf[i] == p) {
+                paraLines.Append(lines.texts.At(i));
+            }
+        }
+        out->texts.SetAt(p, JoinParagraphLinesTemp(paraLines));
+    }
 }

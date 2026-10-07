@@ -114,14 +114,8 @@ struct PageText {
 
 void FreePageText(PageText*);
 
-// text blocks of a page as laid out (e.g. paragraphs, headings), in reading
-// order. Block i is boxes[i] in page coordinates and holds the lines
-// [firstLine[i], firstLine[i+1]) of lines; the last block ends at len(lines).
-struct PageTextBlocks {
-    Vec<RectF> boxes;
-    Vec<int> firstLine;
-    StrVec lines;
-};
+// defined in ParagraphText.h
+struct PageTextLines;
 
 // a link destination
 struct IPageDestination : KindBase {
@@ -583,7 +577,7 @@ class EngineBase {
     virtual PageText ExtractPageText(int) { return {}; }
     virtual bool TryExtractPageText(int pageNo, PageText* out);
     // false if the engine doesn't support it
-    virtual bool ExtractTextBlocks(int, PageTextBlocks*) { return false; }
+    virtual bool ExtractTextLines(int, PageTextLines*) { return false; }
 
     bool HasTextForPage(int pageNo);
     void RequestTextExtraction(int pageNo);

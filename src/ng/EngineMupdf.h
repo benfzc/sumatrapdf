@@ -91,7 +91,7 @@ class EngineMupdf : public EngineBase {
     bool SaveFileAs(Str dstPath) override;
     PageText ExtractPageText(int pageNo) override;
     bool TryExtractPageText(int pageNo, PageText* out) override;
-    bool ExtractTextBlocks(int pageNo, PageTextBlocks* out) override;
+    bool ExtractTextLines(int pageNo, PageTextLines* out) override;
     void ReleaseTextExtractionThreadContext() override;
 
     bool HasClipOptimizations(int pageNo) override;

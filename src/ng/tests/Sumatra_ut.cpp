@@ -42,7 +42,7 @@ void PageRenderPolicy_UnitTests();
 void GoogleFreeTranslate_UnitTests();
 void ParagraphText_UnitTests();
 void RateLimiter_UnitTests();
-void TextBlocks_UnitTests();
+void TextLines_UnitTests();
 void TranslationCache_UnitTests();
 void TranslationService_UnitTests();
 void CommandPaletteModel_UnitTests();
@@ -468,7 +468,7 @@ void SumatraPDF_UnitTests() {
     GoogleFreeTranslate_UnitTests();
     ParagraphText_UnitTests();
     RateLimiter_UnitTests();
-    TextBlocks_UnitTests();
+    TextLines_UnitTests();
     TranslationCache_UnitTests();
     TranslationService_UnitTests();
     CommandPaletteModel_UnitTests();

@@ -51,8 +51,8 @@ constexpr int kPrefetchPages = 2;
 constexpr int kMinReadablePx = 13;
 // smallest font a size computation may produce
 constexpr int kMinFontPx = 8;
-// a translation's first font size: the source line height times this
-constexpr float kFontToLineHeight = 0.8f;
+// a translation's first font size: the source font size times this
+constexpr float kFontScale = 1.0f;
 // space kept between a translation and whatever is below it
 constexpr int kGapPx = 2;
 // the box hiding the English is this much larger on every side
@@ -66,12 +66,10 @@ constexpr int kStatusFontPx = 12;
 
 constexpr COLORREF kStatusColor = RGB(0x80, 0x80, 0x80);
 
-// text blocks of one page, extracted once
+// paragraphs of one page, extracted once
 struct BvPage {
     int pageNo = 0;
-    Vec<RectF> boxes;
-    Vec<int> nLines;
-    StrVec paragraphs;
+    PageParagraphs paras;
 };
 
 // one service for the whole process: one cache file, one rate limit
@@ -150,20 +148,9 @@ static BvPage* GetPage(DisplayModel* dm, int pageNo) {
 
     auto p = new BvPage();
     p->pageNo = pageNo;
-    PageTextBlocks blocks;
-    if (dm->GetEngine()->ExtractTextBlocks(pageNo, &blocks)) {
-        int n = len(blocks.boxes);
-        for (int i = 0; i < n; i++) {
-            int start = blocks.firstLine[i];
-            int end = i + 1 < n ? blocks.firstLine[i + 1] : len(blocks.lines);
-            StrVec lines;
-            for (int l = start; l < end; l++) {
-                lines.Append(blocks.lines.At(l));
-            }
-            VecAppend(p->boxes, blocks.boxes[i]);
-            VecAppend(p->nLines, end - start);
-            p->paragraphs.Append(JoinParagraphLinesTemp(lines));
-        }
+    PageTextLines lines;
+    if (dm->GetEngine()->ExtractTextLines(pageNo, &lines)) {
+        GroupParagraphs(lines, &p->paras);
     }
     VecAppend(gPages, p);
     return p;
@@ -197,16 +184,25 @@ void BilingualViewShutdown() {
 }
 
 constexpr int kMaxFontPx = 64;
-// fonts by pixel size, created on first use, kept for the process lifetime
-static HFONT gFonts[kMaxFontPx + 1];
 
-static HFONT TranslationFont(int px) {
+enum class FontWeight {
+    Normal,
+    Bold,
+};
+
+// fonts by weight and pixel size, created on first use, kept for the process
+// lifetime
+static HFONT gFonts[2][kMaxFontPx + 1];
+
+static HFONT TranslationFont(int px, FontWeight weight = FontWeight::Normal) {
     px = limitValue(px, kMinFontPx, kMaxFontPx);
-    if (!gFonts[px]) {
-        gFonts[px] = CreateFontW(-px, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
-                                 CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, kFontName);
+    int w = weight == FontWeight::Bold ? 1 : 0;
+    if (!gFonts[w][px]) {
+        int fw = weight == FontWeight::Bold ? FW_BOLD : FW_NORMAL;
+        gFonts[w][px] = CreateFontW(-px, 0, 0, 0, fw, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
+                                    CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, kFontName);
     }
-    return gFonts[px];
+    return gFonts[w][px];
 }
 
 // Google sometimes skips its zh -> zh-Hant step and returns Simplified
@@ -223,21 +219,21 @@ static TempWStr ToTraditionalTemp(WStr s) {
 
 constexpr UINT kTextFlags = DT_WORDBREAK | DT_NOPREFIX | DT_EDITCONTROL;
 
-static int TextHeight(HDC hdc, WStr ws, int dx, int px) {
-    SelectObject(hdc, TranslationFont(px));
+static int TextHeight(HDC hdc, WStr ws, int dx, int px, FontWeight weight) {
+    SelectObject(hdc, TranslationFont(px, weight));
     RECT r{0, 0, dx, 0};
     DrawTextW(hdc, ws.s, len(ws), &r, kTextFlags | DT_CALCRECT);
     return r.bottom - r.top;
 }
 
 // longest prefix of ws that, with an ellipsis, fits in dx x maxDy
-static TempWStr TruncateToFitTemp(HDC hdc, WStr ws, int dx, int maxDy, int px) {
+static TempWStr TruncateToFitTemp(HDC hdc, WStr ws, int dx, int maxDy, int px, FontWeight weight) {
     int lo = 0;
     int hi = len(ws);
     while (lo < hi) {
         int mid = (lo + hi + 1) / 2;
         TempWStr cand = str::JoinTemp(WStr(ws.s, mid), WStrL(L"…"));
-        if (TextHeight(hdc, cand, dx, px) <= maxDy) {
+        if (TextHeight(hdc, cand, dx, px, weight) <= maxDy) {
             lo = mid;
         } else {
             hi = mid - 1;
@@ -347,8 +343,8 @@ static int BlankBelow(const LeftSnapshot& snap, Rect rc, COLORREF pageBg, int ma
 // Replaces one paragraph's English with its translation. The translation may
 // use the blank space below the paragraph, so Chinese can be drawn at a
 // readable size; if it still doesn't fit it's cut with an ellipsis.
-static void PaintTranslation(HDC hdc, const LeftSnapshot& snap, Str text, Rect rc, int nLines, int pageBottom, int dx,
-                             COLORREF pageBg, COLORREF txtCol) {
+static void PaintTranslation(HDC hdc, const LeftSnapshot& snap, Str text, Rect rc, int fontPx, FontWeight weight,
+                             int pageBottom, COLORREF pageBg, COLORREF txtCol) {
     if (rc.dx <= 0 || rc.dy <= 0) {
         return;
     }
@@ -356,21 +352,23 @@ static void PaintTranslation(HDC hdc, const LeftSnapshot& snap, Str text, Rect r
     int spillLimit = std::min(pageBottom, rc.y + rc.dy * kMaxSpillFactor);
     int maxDy = rc.dy + BlankBelow(snap, rc, pageBg, spillLimit);
 
+    // start at the source's own size (headings stay big), shrink to fit, but
+    // not below a readable minimum
     int minPx = DpiScale(kMinReadablePx);
-    int lineDy = rc.dy / std::max(nLines, 1);
-    int px = limitValue(std::max((int)((float)lineDy * kFontToLineHeight), minPx), kMinFontPx, kMaxFontPx);
-    HGDIOBJ prevFont = SelectObject(hdc, TranslationFont(px));
-    int textDy = TextHeight(hdc, ws, rc.dx, px);
+    int px = limitValue(std::max(fontPx, minPx), kMinFontPx, kMaxFontPx);
+    HGDIOBJ prevFont = SelectObject(hdc, TranslationFont(px, weight));
+    int textDy = TextHeight(hdc, ws, rc.dx, px, weight);
     while (textDy > maxDy && px > minPx) {
         px--;
-        textDy = TextHeight(hdc, ws, rc.dx, px);
+        textDy = TextHeight(hdc, ws, rc.dx, px, weight);
     }
     if (textDy > maxDy) {
-        ws = TruncateToFitTemp(hdc, ws, rc.dx, maxDy, px);
+        ws = TruncateToFitTemp(hdc, ws, rc.dx, maxDy, px, weight);
         textDy = maxDy;
     }
 
     // hide the English it replaces, and the area the translation spills into
+    int dx = snap.dx;
     Rect cover(rc.x + dx - kCoverPadPx, rc.y - kCoverPadPx, rc.dx + 2 * kCoverPadPx,
                std::max(rc.dy, textDy) + 2 * kCoverPadPx);
     RECT coverR = ToRECT(cover);
@@ -379,7 +377,7 @@ static void PaintTranslation(HDC hdc, const LeftSnapshot& snap, Str text, Rect r
     DeleteObject(brush);
 
     RECT r = ToRECT(Rect(rc.x + dx, rc.y, rc.dx, maxDy));
-    SelectObject(hdc, TranslationFont(px));
+    SelectObject(hdc, TranslationFont(px, weight));
     SetTextColor(hdc, txtCol);
     DrawTextW(hdc, ws.s, len(ws), &r, kTextFlags);
     SelectObject(hdc, prevFont);
@@ -399,18 +397,24 @@ static void PaintMirrorPage(HDC hdc, const LeftSnapshot& snap, DisplayModel* dm,
     int pageBottom = visible.y + visible.dy;
 
     BvPage* p = GetPage(dm, pageNo);
-    for (int i = 0; i < len(p->boxes); i++) {
+    const PageParagraphs& paras = p->paras;
+    for (int i = 0; i < len(paras.boxes); i++) {
         TempStr text;
         // pending, skipped (values, register names) and failed paragraphs
         // keep the original text
         if (TrServiceGet(gService, pageNo, i, &text) != TrState::Done) {
             continue;
         }
-        Rect rc = dm->CvtToScreen(pageNo, p->boxes[i]);
+        Rect rc = dm->CvtToScreen(pageNo, paras.boxes[i]);
         if (rc.Intersect(visible).IsEmpty()) {
             continue;
         }
-        PaintTranslation(hdc, snap, text, rc, p->nLines[i], pageBottom, dx, pageBg, txtCol);
+        // the source font size in screen pixels at the current zoom
+        RectF sizeBox = paras.boxes[i];
+        sizeBox.dy = paras.fontSizes[i];
+        int fontPx = (int)((float)dm->CvtToScreen(pageNo, sizeBox).dy * kFontScale);
+        FontWeight weight = paras.bold[i] ? FontWeight::Bold : FontWeight::Normal;
+        PaintTranslation(hdc, snap, text, rc, fontPx, weight, pageBottom, pageBg, txtCol);
     }
 }
 
@@ -449,11 +453,11 @@ void BilingualViewPaint(MainWindow* win, HDC hdc) {
             continue;
         }
         lastVisible = pageNo;
-        TrServiceRequest(gService, pageNo, GetPage(dm, pageNo)->paragraphs, TrPriority::Visible);
+        TrServiceRequest(gService, pageNo, GetPage(dm, pageNo)->paras.texts, TrPriority::Visible);
         PaintMirrorPage(hdc, snap, dm, pi, pageNo, txtCol);
     }
     for (int pageNo = lastVisible + 1; pageNo <= lastVisible + kPrefetchPages && pageNo <= dm->PageCount(); pageNo++) {
-        TrServiceRequest(gService, pageNo, GetPage(dm, pageNo)->paragraphs, TrPriority::Prefetch);
+        TrServiceRequest(gService, pageNo, GetPage(dm, pageNo)->paras.texts, TrPriority::Prefetch);
     }
 
     TempStr status = StatusTextTemp();

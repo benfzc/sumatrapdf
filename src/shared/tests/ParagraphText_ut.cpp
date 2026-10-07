@@ -49,7 +49,45 @@ static void ClassifyTest() {
     utassert(ClassifyParagraph(StrL("   ")) == ParagraphKind::Skip);
 }
 
+static void AddLine(PageTextLines& l, const char* text, float x, float y, float dx, int block) {
+    constexpr float kSize = 10;
+    l.texts.Append(Str(text));
+    VecAppend(l.boxes, RectF(x, y, dx, kSize));
+    VecAppend(l.blocks, block);
+    VecAppend(l.fontSizes, kSize);
+    VecAppend(l.bold, false);
+}
+
+static void GroupTest() {
+    // a 2-row table in one layout block; the second cell of row 1 wraps:
+    //   | PeriphID | Serial engine         |
+    //   |          | peripheral.           |
+    //   | Mode     | Macro of modes.       |
+    // then a separate paragraph (another block) of 2 lines
+    PageTextLines l;
+    AddLine(l, "PeriphID", 10, 100, 50, 0);
+    AddLine(l, "Serial engine", 100, 100, 80, 0);
+    AddLine(l, "peripheral.", 100, 111, 70, 0);
+    AddLine(l, "Mode", 10, 130, 30, 0);
+    AddLine(l, "Macro of modes.", 100, 130, 90, 0);
+    AddLine(l, "First line of a", 10, 200, 150, 1);
+    AddLine(l, "paragraph.", 10, 211, 60, 1);
+
+    PageParagraphs p;
+    GroupParagraphs(l, &p);
+    utassert(len(p.texts) == 5);
+    utassert(str::Eq(p.texts.At(0), StrL("PeriphID")));
+    utassert(str::Eq(p.texts.At(1), StrL("Serial engine peripheral.")));
+    utassert(str::Eq(p.texts.At(2), StrL("Mode")));
+    utassert(str::Eq(p.texts.At(3), StrL("Macro of modes.")));
+    utassert(str::Eq(p.texts.At(4), StrL("First line of a paragraph.")));
+
+    // the wrapped cell's box covers both of its lines
+    utassert(p.boxes[1].y == 100 && p.boxes[1].dy == 21);
+}
+
 void ParagraphText_UnitTests() {
     JoinTest();
     ClassifyTest();
+    GroupTest();
 }

@@ -39,6 +39,7 @@ extern "C" {
 #include "EbookBase.h"
 #include "EbookDoc.h"
 #include "Settings.h"
+#include "ParagraphText.h"
 #include "EngineMupdf.h"
 
 // A5
@@ -7848,46 +7849,98 @@ bool EngineMupdf::TryExtractPageText(int pageNo, PageText* out) {
     return true;
 }
 
-// one stext line as UTF-8: soft hyphens dropped, invalid runes as '?'
-static void AppendStextLine(const fz_stext_line* line, str::Builder& s) {
+// a gap wider than this many font sizes between two characters of a line
+// splits it: table cells side by side, not word spacing in justified text
+constexpr float kPieceGapEm = 1.8f;
+
+struct StextPiece {
+    str::Builder text;
+    fz_rect box = fz_empty_rect;
+    float sizeSum = 0;
+    int nChars = 0;
+    int nBold = 0;
+};
+
+static void AppendRune(str::Builder& s, int rune) {
+    if (!IsUnicodeScalar(rune)) {
+        s.AppendChar('?');
+        return;
+    }
+    char buf[FZ_UTFMAX];
+    int n = fz_runetochar(buf, rune);
+    s.Append(Str(buf, n));
+}
+
+static bool IsAsciiSpace(int rune) {
+    return rune == ' ' || rune == '\t';
+}
+
+static void FlushPiece(StextPiece& piece, int blockNo, PageTextLines* out) {
+    if (piece.nChars > 0) {
+        TempStr text = ToStrTemp(piece.text);
+        str::TrimWSInPlace(text, str::TrimOpt::Both);
+        out->texts.Append(text);
+        VecAppend(out->boxes, ToRectF(piece.box));
+        VecAppend(out->blocks, blockNo);
+        VecAppend(out->fontSizes, piece.sizeSum / (float)piece.nChars);
+        VecAppend(out->bold, piece.nBold * 2 > piece.nChars);
+    }
+    piece.text.Reset();
+    piece.box = fz_empty_rect;
+    piece.sizeSum = 0;
+    piece.nChars = 0;
+    piece.nBold = 0;
+}
+
+// one stext line as one or more pieces (split at wide gaps); soft hyphens
+// dropped, invalid runes as '?'
+static void CollectStextLine(fz_context* ctx, const fz_stext_line* line, int blockNo, PageTextLines* out) {
+    StextPiece piece;
+    float prevRight = 0;
     for (fz_stext_char* c = line->first_char; c; c = c->next) {
         int rune = c->c;
         if (rune == 0xAD) {
             continue;
         }
-        if (!IsUnicodeScalar(rune)) {
-            s.AppendChar('?');
+        if (IsAsciiSpace(rune)) {
+            piece.text.AppendChar(' ');
             continue;
         }
-        char buf[FZ_UTFMAX];
-        int n = fz_runetochar(buf, rune);
-        s.Append(Str(buf, n));
+
+        fz_rect r = fz_rect_from_quad(c->quad);
+        if (piece.nChars > 0 && r.x0 - prevRight > c->size * kPieceGapEm) {
+            FlushPiece(piece, blockNo, out);
+        }
+        AppendRune(piece.text, rune);
+        piece.box = fz_union_rect(piece.box, r);
+        piece.sizeSum += c->size;
+        piece.nChars++;
+        piece.nBold += (c->font && fz_font_is_bold(ctx, c->font)) ? 1 : 0;
+        prevRight = r.x1;
     }
+    FlushPiece(piece, blockNo, out);
 }
 
-static void CollectStextBlocks(fz_stext_block* block, PageTextBlocks* out) {
+static void CollectStextBlocks(fz_context* ctx, fz_stext_block* block, int* blockNo, PageTextLines* out) {
     for (; block; block = block->next) {
         if (block->type == FZ_STEXT_BLOCK_STRUCT && block->u.s.down) {
-            CollectStextBlocks(block->u.s.down->first_block, out);
+            CollectStextBlocks(ctx, block->u.s.down->first_block, blockNo, out);
             continue;
         }
         if (block->type != FZ_STEXT_BLOCK_TEXT) {
             continue;
         }
-
-        VecAppend(out->boxes, ToRectF(block->bbox));
-        VecAppend(out->firstLine, len(out->lines));
         for (fz_stext_line* line = block->u.t.first_line; line; line = line->next) {
-            str::Builder s;
-            AppendStextLine(line, s);
-            out->lines.Append(ToStrTemp(s));
+            CollectStextLine(ctx, line, *blockNo, out);
         }
+        (*blockNo)++;
     }
 }
 
-// the page's text blocks, for showing a translation of each one in its place
-// (bilingual view). Lines are raw: no de-hyphenation, ParagraphText does that.
-bool EngineMupdf::ExtractTextBlocks(int pageNo, PageTextBlocks* out) {
+// the page's text as line pieces with position, size and weight, for showing
+// a translation of each paragraph in its place (bilingual view). Lines are
+// raw: no de-hyphenation, ParagraphText does that.
+bool EngineMupdf::ExtractTextLines(int pageNo, PageTextLines* out) {
     ScopedRecursiveMutex pagesScope(&pagesLock);
     ScopedMutex renderScope(&renderLock);
     FzPageInfo* pageInfo = GetFzPageInfoLocked(this, LocationFromPageNo(pageNo), true, nullptr);
@@ -7910,7 +7963,8 @@ bool EngineMupdf::ExtractTextBlocks(int pageNo, PageTextBlocks* out) {
     if (!stext) {
         return false;
     }
-    CollectStextBlocks(stext->first_block, out);
+    int blockNo = 0;
+    CollectStextBlocks(ctx, stext->first_block, &blockNo, out);
     fz_drop_stext_page(ctx, stext);
     return true;
 }

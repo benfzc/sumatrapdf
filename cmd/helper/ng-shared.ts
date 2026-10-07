@@ -250,7 +250,7 @@ export const sharedFiles = [
   "src/shared/tests/ReadAloudHighlight_ut.cpp",
   "src/shared/tests/RenderCache_ut.cpp",
   "src/shared/tests/SimpleLog_ut.cpp",
-  "src/shared/tests/TextBlocks_ut.cpp",
+  "src/shared/tests/TextLines_ut.cpp",
   "src/shared/tests/TextSelection_ut.cpp",
   "src/shared/tests/TranslationCache_ut.cpp",
   "src/shared/tests/TranslationService_ut.cpp",
