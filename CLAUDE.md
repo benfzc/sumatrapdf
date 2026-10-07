@@ -29,16 +29,21 @@
 - 上游的 `.github/workflows/build.yml`（`-ci` 模式）在本 fork 的 push 上會建置 Win32 版並跑 debug unit tests，不上傳任何東西，約 9 分鐘。
 - 本 fork 的 `.github/workflows/fork-build.yml` 補上 x64：debug unit tests、release 建置，並把 `SumatraPDF.exe` 上傳成 artifact。
 - Google 免費翻譯端點會封鎖雲端 IP（回 429 加 HTML "Sorry" 頁），所以 CI 和雲端容器裡的測試不可連線，改用存下來的回應當 fixture。
-- 不依賴 Win32 的模組（放在 `src/shared`、`src/base`）先在 Linux 用 g++ 編譯並跑 unit tests，再 push 給 CI。
+- 不依賴 Win32 的模組（放在 `src/shared`、`src/base`）先在 Linux 編譯並跑 unit tests，再 push 給 CI：`bun cmd/ng-build.ts -linux -dbg test_util -run -- -for-ai`（需先 `apt-get install libx11-dev libcairo2-dev libpango1.0-dev libgdk-pixbuf-2.0-dev libglib2.0-dev libssl-dev`）。
+- 新增 `src/shared` 模組時要登記：`premake5.files.lua`、`vs2022/SumatraPDF*.vcxproj(.filters)`、`cmd/helper/ng-shared.ts`、`cmd/helper/ng-targets.ts`，以及 `src/tests/Sumatra_ut.cpp`、`src/ng/tests/Sumatra_ut.cpp` 的 unit test 呼叫。vcxproj 由 premake 產生，但 premake 只有 Windows 版，所以照既有項目的格式與排序手動加入。
 
 ## 進行中的功能：PDF 中英對照（鏡像頁）
 
 已定案的設計決策：
 
 - 對照模式啟用時，畫布平分左右兩半：左邊原文，右邊「鏡像頁」。鏡像頁直接套用 `DisplayModel` 的頁面座標，每段譯文畫在原文段落的 bbox 位置；用原生 Direct2D/DirectWrite 繪製。
-- 段落來源：在 `EngineBase` 新增取 block 的介面，由 `EngineMupdf` 用 `fz_stext_block` 實作。EPUB/FB2 預設也走 `EngineMupdf`，所以一併支援。
+- 段落來源：在 `EngineBase` 新增取 block 的介面，由 `EngineMupdf` 用 `fz_stext_block` 實作。EPUB/FB2 預設也走 `EngineMupdf`，所以一併支援。block 內各行由 `src/shared/ParagraphText` 合成段落並判斷是否跳過。
 - 翻譯 provider：先只做 Google 免費端點，付費 API 之後再加；透過 provider 介面抽象。
-- 限速：每個 provider 一個 token bucket；遇到 429 做指數退避冷卻。
-- 快取：全域、只追加的檔案，放在 `GetAppDataDirTemp()` 下的 `translations\`；key 為 hash(正規化段落文字 + 目標語言 + provider)。
+- 限速：`src/shared/RateLimiter`，每分鐘與每小時兩個 sliding window；服務回 429 或封鎖頁時冷卻 30s→60s→120s→240s，連續第 4 次改為暫停，等使用者手動恢復。
+- 快取：`src/shared/TranslationCache`，以 `AppendStore` 存在 `GetAppDataDirTemp()` 下的 `translations\`；key 為 SHA1(provider + 目標語言 + 段落文字)，開啟時全部載入記憶體。
 - 預設目標語言 `zh-TW`。
-- 實作順序：步驟 0 新增 fork 專用的 CI workflow 並驗證建置；接著用 bash + curl 做 Google 端點的 spike；最後寫 C++（P1）。
+
+P1 狀態：
+
+- 已完成：`fork-build.yml`、`spike/google-translate-spike.sh`、`RateLimiter`、`TranslationCache`、`ParagraphText`。
+- 待辦（依序）：使用者在自己的網路跑 spike（雲端 IP 被封鎖）→ 依結果寫 Google provider 與回應解析 → `EngineBase` 取 block 介面 → `TranslationService`（佇列、批次、背景執行緒）→ 鏡像頁 UI 與「切換中英對照」命令。
