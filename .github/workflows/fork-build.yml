@@ -5,6 +5,8 @@ name: fork-build
 on:
   push:
     branches: ["claude/**"]
+    # a version tag also publishes a GitHub Release, see the release job
+    tags: ["bilingual-v*"]
     # doc-only pushes don't need a 40 minute Windows build
     paths-ignore: ["docs/**", "spike/**", "**.md"]
   workflow_dispatch:
@@ -55,3 +57,36 @@ jobs:
           path: out/dbg64/unit-tests-dbg.txt
           if-no-files-found: ignore
           retention-days: 7
+
+  # Publishes the exe built above as a public GitHub Release (no login
+  # needed to download). Runs only for bilingual-v* tags.
+  release:
+    name: Publish GitHub Release
+    needs: windows
+    if: startsWith(github.ref, 'refs/tags/bilingual-v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out release notes
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          sparse-checkout: .github/release-notes.md
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Download release exe
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          name: SumatraPDF-rel64-${{ github.sha }}
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          asset="SumatraPDF-Bilingual-${TAG#bilingual-}-64.exe"
+          mv SumatraPDF.exe "$asset"
+          gh release create "$TAG" "$asset" --repo "$GITHUB_REPOSITORY" \
+            --title "SumatraPDF 中英對照版 ${TAG#bilingual-}" \
+            --notes-file .github/release-notes.md
