@@ -1,0 +1,386 @@
+<title>SumatraPDF 架構導覽</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@600;900&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: single reading column with a sticky section index on wide screens; layer diagram as stacked bands */
+:root {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --ink: #1b2330;
+  --muted: #5a6577;
+  --line: #d9dee6;
+  --accent: #b7791f;      /* Sumatra yellow, deepened for text contrast */
+  --accent-soft: #fbf1dc;
+  --blue: #2c5a8c;
+  --blue-soft: #e6eef7;
+  --green: #2f7a4f;
+  --green-soft: #e3f2e8;
+  --red: #a63d3d;
+  --red-soft: #f7e4e4;
+  --code-bg: #eef1f5;
+  --f-display: "Noto Serif TC", "Songti TC", serif;
+  --f-body: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12161d; --surface: #1a2029; --ink: #e4e8ee; --muted: #9aa5b5; --line: #2c3542;
+    --accent: #e3a94a; --accent-soft: #2e2618; --blue: #7fb0e3; --blue-soft: #1b2838;
+    --green: #74c495; --green-soft: #18291f; --red: #e38a8a; --red-soft: #2e1a1a; --code-bg: #222a35;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12161d; --surface: #1a2029; --ink: #e4e8ee; --muted: #9aa5b5; --line: #2c3542;
+  --accent: #e3a94a; --accent-soft: #2e2618; --blue: #7fb0e3; --blue-soft: #1b2838;
+  --green: #74c495; --green-soft: #18291f; --red: #e38a8a; --red-soft: #2e1a1a; --code-bg: #222a35;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--f-body); font-size: 16px; line-height: 1.75;
+  padding-inline: 16px; padding-block: 0 64px;
+}
+.wrap { max-width: 1080px; margin: 0 auto; display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 48px; }
+@media (max-width: 860px) { .wrap { grid-template-columns: minmax(0, 1fr); gap: 0; } nav.toc { display: none; } }
+nav.toc { position: sticky; top: env(safe-area-inset-top, 0px); align-self: start; padding-top: 48px; font-size: 14px; }
+nav.toc .lbl { font-size: 12px; letter-spacing: .12em; color: var(--muted); text-transform: uppercase; }
+nav.toc ol { list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 6px; }
+nav.toc a { color: var(--muted); text-decoration: none; }
+nav.toc a:hover, nav.toc a:focus-visible { color: var(--accent); }
+main { min-width: 0; }
+header.hero { padding-block: 48px 24px; border-bottom: 1px solid var(--line); }
+.eyebrow { font-family: var(--f-mono); font-size: 13px; color: var(--accent); letter-spacing: .04em; }
+h1 { font-family: var(--f-display); font-weight: 900; font-size: clamp(32px, 6vw, 48px); line-height: 1.2; margin: 8px 0 12px; text-wrap: balance; }
+.lede { font-size: 18px; color: var(--muted); max-width: 40em; margin: 0; }
+.facts { display: flex; flex-wrap: wrap; gap: 8px 24px; margin-top: 20px; font-size: 14px; color: var(--muted); }
+.facts b { color: var(--ink); font-family: var(--f-mono); font-weight: 600; }
+section { padding-top: 40px; }
+h2 { font-family: var(--f-display); font-weight: 600; font-size: 26px; margin: 0 0 12px; text-wrap: balance; }
+h3 { font-size: 17px; margin: 28px 0 8px; }
+p { margin: 0 0 12px; max-width: 42em; }
+code, .mono { font-family: var(--f-mono); font-size: .88em; }
+code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+pre.cmd { background: var(--code-bg); padding: 14px 16px; border-radius: 6px; overflow-x: auto; font-family: var(--f-mono); font-size: 13.5px; line-height: 1.6; margin: 8px 0 16px; }
+.tbl { overflow-x: auto; margin: 12px 0 20px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 14.5px; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 13px; color: var(--muted); font-weight: 500; background: var(--bg); white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+td code { white-space: nowrap; }
+
+/* Layer stack diagram */
+.stack { display: grid; gap: 6px; margin: 16px 0 8px; }
+.layer { display: grid; grid-template-columns: 150px minmax(0, 1fr); border: 1px solid var(--line); border-radius: 6px; background: var(--surface); overflow: hidden; }
+@media (max-width: 560px) { .layer { grid-template-columns: minmax(0, 1fr); } }
+.layer .name { padding: 12px 14px; font-weight: 700; font-size: 14px; background: var(--blue-soft); color: var(--blue); }
+.layer .name small { display: block; font-family: var(--f-mono); font-weight: 400; font-size: 12px; opacity: .85; }
+.layer .body { padding: 10px 14px; font-size: 14px; min-width: 0; }
+.layer.app .name { background: var(--accent-soft); color: var(--accent); }
+.layer.ext .name { background: var(--green-soft); color: var(--green); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.chip { font-family: var(--f-mono); font-size: 12px; padding: 2px 8px; border-radius: 4px; background: var(--code-bg); }
+.arrow { text-align: center; color: var(--muted); font-size: 12px; line-height: 1; }
+
+.two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 16px 0; }
+@media (max-width: 680px) { .two { grid-template-columns: minmax(0, 1fr); } }
+.card { border: 1px solid var(--line); border-radius: 6px; background: var(--surface); padding: 16px 18px; min-width: 0; }
+.card h3 { margin-top: 0; }
+.card ul { margin: 0; padding-left: 1.2em; font-size: 14.5px; }
+
+.feat { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; margin: 16px 0; }
+.feat div { border-top: 2px solid var(--accent); padding-top: 8px; font-size: 14.5px; min-width: 0; }
+.feat b { display: block; margin-bottom: 2px; }
+.feat span { color: var(--muted); }
+
+.pill { display: inline-block; font-size: 12px; font-weight: 700; padding: 1px 8px; border-radius: 999px; white-space: nowrap; }
+.ok { background: var(--green-soft); color: var(--green); }
+.mid { background: var(--accent-soft); color: var(--accent); }
+.no { background: var(--red-soft); color: var(--red); }
+
+.note { border-left: 3px solid var(--blue); background: var(--blue-soft); padding: 12px 16px; border-radius: 0 6px 6px 0; margin: 16px 0; font-size: 15px; }
+.note p:last-child { margin-bottom: 0; }
+footer { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); }
+a { color: var(--blue); }
+</style>
+
+<div class="wrap">
+  <nav class="toc" aria-label="章節">
+    <div class="lbl">章節</div>
+    <ol>
+      <li><a href="#overview">專案概覽</a></li>
+      <li><a href="#lines">兩條產品線</a></li>
+      <li><a href="#arch">軟體架構</a></li>
+      <li><a href="#flow">開檔與繪製流程</a></li>
+      <li><a href="#engines">文件引擎</a></li>
+      <li><a href="#bins">產出的執行檔</a></li>
+      <li><a href="#features">功能</a></li>
+      <li><a href="#platforms">適合的平台</a></li>
+      <li><a href="#build">建置與測試</a></li>
+      <li><a href="#dirs">目錄速查</a></li>
+    </ol>
+  </nav>
+
+  <main>
+    <header class="hero">
+      <div class="eyebrow">benfzc/sumatrapdf · C++ / Win32</div>
+      <h1>SumatraPDF 架構導覽</h1>
+      <p class="lede">一套輕量、多格式的文件閱讀器。原版是純 Win32 的 Windows 程式；另有 <code>src/ng/</code> 這條新產品線，目標是 macOS、Linux 與瀏覽器 (WebAssembly)。</p>
+      <div class="facts">
+        <span>授權 <b>GPLv3 / AGPLv3</b>（部分 BSD）</span>
+        <span>PDF 核心 <b>MuPDF 1.28.5</b></span>
+        <span>src/*.cpp 約 <b>158k</b> 行</span>
+        <span>src/ng 約 <b>126k</b> 行</span>
+        <span>src/base 約 <b>29k</b> 行</span>
+      </div>
+    </header>
+
+    <section id="overview">
+      <h2>專案概覽</h2>
+      <p>SumatraPDF 支援 PDF、EPUB、MOBI、CBZ/CBR、FB2、CHM、XPS、DjVu 等格式，強調啟動快、檔案小、介面簡潔。程式以 C++ 撰寫，<b>不使用 STL</b>，字串、容器、檔案 I/O 等基礎設施都在 <code>src/base/</code> 自行實作。</p>
+      <p>第三方函式庫放在 <code>ext/</code>。<code>ext/mupdf</code> 直接在原地修改，每個改動都要同時在 <code>ext/patches/</code> 留一份 patch；<code>ext/a-*</code> 是由 <code>cmd/amalgam.ts</code> 產生的 amalgamation（把整個函式庫合併成少數幾個 .c 檔），不可手改。建置腳本是 TypeScript，用 <code>bun</code> 執行。</p>
+    </section>
+
+    <section id="lines">
+      <h2>兩條產品線</h2>
+      <div class="two">
+        <div class="card">
+          <h3>原版 SumatraPDF（<code>src/</code>）</h3>
+          <ul>
+            <li>只支援 Windows，直接使用 Win32 API</li>
+            <li>繪圖：Direct2D / GDI+</li>
+            <li>HTML 類內容用 WebView2（Markdown、CHM）</li>
+            <li>建置：<code>bun cmd/build.ts</code> → <code>out/dbg64/SumatraPDF.exe</code></li>
+            <li>舊的 macOS/Linux 移植與 MinGW/Wine 建置已移除</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>SumatraPDF ng（<code>src/ng/</code>）</h3>
+          <ul>
+            <li>目標平台：macOS、Linux、WebAssembly；Windows 版只用於測試比對</li>
+            <li>UI 建立在 <code>ext/gpui</code>（gpui-kit-cpp 的 amalgamated 版本）</li>
+            <li>平台相關程式以檔名後綴區分：<code>_posix</code>、<code>_linux</code>、<code>_mac.mm</code>、<code>_wasm</code></li>
+            <li>建置：<code>bun cmd/ng-build.ts -linux|-mac|-wasm</code></li>
+            <li>和原版共用 <code>src/base</code>、<code>src/shared</code>、<code>ext/</code></li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="arch">
+      <h2>軟體架構</h2>
+      <p>由上而下分成六層。上層只呼叫緊鄰的下一層，例如 UI 不直接呼叫 MuPDF，而是透過 <code>DocController</code> 與 <code>EngineBase</code>。</p>
+
+      <div class="stack" role="list">
+        <div class="layer app" role="listitem">
+          <div class="name">應用程式 / UI<small>src/*.cpp</small></div>
+          <div class="body">主視窗、分頁、工具列、側邊欄、對話框、主題。
+            <div class="chips"><span class="chip">SumatraPDF.cpp</span><span class="chip">MainWindow</span><span class="chip">WindowTab</span><span class="chip">Canvas</span><span class="chip">Toolbar</span><span class="chip">Tabs</span><span class="chip">SidebarPanel</span><span class="chip">TableOfContents</span><span class="chip">CommandPalette</span><span class="chip">Menu</span><span class="chip">Theme / DarkMode</span></div>
+          </div>
+        </div>
+        <div class="arrow" aria-hidden="true">▼</div>
+        <div class="layer" role="listitem">
+          <div class="name">文件控制器<small>DocController</small></div>
+          <div class="body">把「顯示一份文件」抽象化，透過 <code>DocControllerCallback</code> 通知 UI 換頁、縮放、重繪。三個實作：
+            <div class="chips"><span class="chip">DisplayModel（固定版面：PDF、圖片、電子書排版後）</span><span class="chip">ChmModel（HTML 視窗）</span><span class="chip">MarkdownModel（WebView2 + marked.js）</span></div>
+          </div>
+        </div>
+        <div class="arrow" aria-hidden="true">▼</div>
+        <div class="layer" role="listitem">
+          <div class="name">繪製與快取<small>render service</small></div>
+          <div class="body">背景執行緒繪製頁面、點陣圖快取（預設上限 96 MB）、預測式預先繪製下一頁。
+            <div class="chips"><span class="chip">PageRenderService</span><span class="chip">RenderCache</span><span class="chip">PageRenderPolicy</span><span class="chip">PageThumbnails</span></div>
+          </div>
+        </div>
+        <div class="arrow" aria-hidden="true">▼</div>
+        <div class="layer" role="listitem">
+          <div class="name">文件引擎<small>EngineBase</small></div>
+          <div class="body">每種格式一個引擎，介面統一：<code>RenderPage()</code>、<code>PageMediabox()</code>、文字擷取、目錄、連結、註解。<code>EngineCreate.cpp</code> 依檔案類型選擇引擎。
+            <div class="chips"><span class="chip">EngineMupdf</span><span class="chip">EngineEbook</span><span class="chip">EngineImages</span><span class="chip">EngineDjvuDec</span><span class="chip">EnginePs</span><span class="chip">EngineDvi</span></div>
+          </div>
+        </div>
+        <div class="arrow" aria-hidden="true">▼</div>
+        <div class="layer" role="listitem">
+          <div class="name">共用與基礎<small>src/shared · src/base · src/gui</small></div>
+          <div class="body"><b>shared</b>：格式解析器（MobiDoc、EbookDoc、ChmFile、LitDoc、PalmDb）、HTML 排版、PdfSync（SyncTeX）、PDF 深色模式。<b>base</b>：自製字串/容器、檔案、壓縮檔、HTTP、加密、crash handler、記憶體 arena。<b>gui</b>：Gfx 繪圖抽象、虛擬控制項、Win32 元件、WebView。</div>
+        </div>
+        <div class="arrow" aria-hidden="true">▼</div>
+        <div class="layer ext" role="listitem">
+          <div class="name">第三方函式庫<small>ext/</small></div>
+          <div class="body">
+            <div class="chips"><span class="chip">mupdf</span><span class="chip">a-freetype</span><span class="chip">a-harfbuzz</span><span class="chip">a-openjpeg</span><span class="chip">a-jbig2dec</span><span class="chip">a-lcms2</span><span class="chip">a-libwebp</span><span class="chip">libjpeg-turbo</span><span class="chip">dav1d / heicdec / jxldec</span><span class="chip">djvudec</span><span class="chip">chmdec</span><span class="chip">a-libarchive / a-unrar / lzma</span><span class="chip">a-zlib / zlib-ng / a-brotli</span><span class="chip">a-mujs</span><span class="chip">a-gumbo</span><span class="chip">cmark-gfm</span><span class="chip">synctex</span><span class="chip">webview2</span><span class="chip">gpui</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="flow">
+      <h2>開檔與繪製流程</h2>
+      <p>以開啟一個 PDF 為例。對熟悉 Linux 的人來說，可以把 <code>EngineBase</code> 想成 driver 的 ops table，<code>PageRenderService</code> 像一個 worker thread 加上 page cache。</p>
+<pre class="mermaid">
+sequenceDiagram
+    participant U as 使用者
+    participant W as MainWindow / WindowTab
+    participant C as EngineCreate
+    participant E as EngineMupdf
+    participant D as DisplayModel
+    participant R as PageRenderService
+    U->>W: 開啟 file.pdf
+    W->>C: CreateEngineFromFile(path)
+    C->>C: GuessFileType 判斷格式
+    C->>E: CreateEngineMupdfFromFile()
+    E-->>W: EngineBase*
+    W->>D: 建立 DisplayModel(engine)
+    D->>D: 依縮放與檢視模式計算頁面位置
+    D->>R: RequestRendering(可見頁 + 預測頁)
+    R->>E: RenderPage(args)（背景執行緒）
+    E-->>R: Pixmap
+    R-->>W: onPageReady → Repaint
+    W-->>U: Canvas 顯示頁面
+</pre>
+      <p>引擎的核心虛擬函式（節錄自 <code>src/shared/EngineBase.h</code>）：</p>
+<pre class="cmd">class EngineBase {
+    virtual EngineBase* Clone() = 0;
+    virtual RectF PageMediabox(int pageNo) = 0;
+    virtual Pixmap* RenderPage(RenderPageArgs&amp; args) = 0;
+    virtual int LayOutChapter(int chapter);      // reflowable ebooks
+    virtual Location ResolveDest(IPageDestination* dest);
+    ...
+};</pre>
+    </section>
+
+    <section id="engines">
+      <h2>文件引擎與支援格式</h2>
+      <div class="tbl">
+        <table>
+          <thead><tr><th>引擎</th><th>格式</th><th>底層</th></tr></thead>
+          <tbody>
+            <tr><td><code>EngineMupdf</code></td><td>PDF、XPS / OXPS，也處理部分圖片</td><td>MuPDF</td></tr>
+            <tr><td><code>EngineEbook</code></td><td>EPUB、FB2、MOBI / AZW、PDB、LIT、CHM、HTML、TXT</td><td>shared/ 格式解析器 + HtmlFormatter 排版</td></tr>
+            <tr><td><code>EngineImages</code></td><td>JPEG、PNG、GIF、TIFF、BMP、TGA、WebP、AVIF、HEIC、JPEG XL、JPEG 2000；CBZ / CBR / CB7 / CBT 漫畫壓縮檔；圖片資料夾</td><td>libjpeg-turbo、libwebp、dav1d、heicdec、jxldec、libarchive、unrar</td></tr>
+            <tr><td><code>EngineDjvuDec</code></td><td>DjVu</td><td>djvudec</td></tr>
+            <tr><td><code>EnginePs</code></td><td>PostScript / EPS</td><td>外部 Ghostscript 轉成 PDF</td></tr>
+            <tr><td><code>EngineDvi</code></td><td>DVI（TeX 輸出）</td><td>自有解析</td></tr>
+            <tr><td><code>MarkdownModel</code></td><td>Markdown（含 mermaid 圖）</td><td>WebView2 + marked.js / mermaid.js</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="bins">
+      <h2>產出的執行檔</h2>
+      <div class="tbl">
+        <table>
+          <thead><tr><th>產物</th><th>用途</th><th>原始碼</th></tr></thead>
+          <tbody>
+            <tr><td><code>SumatraPDF.exe</code></td><td>主程式（GUI），內含安裝 / 解除安裝程式；debug 版內含 unit tests</td><td><code>src/</code></td></tr>
+            <tr><td><code>SumatraPDF-static.exe</code></td><td>單一執行檔的靜態連結版本</td><td><code>src/</code></td></tr>
+            <tr><td><code>libsumatrapdf.dll</code></td><td>共用函式庫，匯出 MuPDF 工具函式</td><td><code>src/libsumatrapdf.def</code></td></tr>
+            <tr><td><code>sumatrapdf-tool.exe</code></td><td>Console 版命令列工具，包裝 mutool：draw、convert、info、clean、merge、sign 等</td><td><code>src/sumatrapdf-tool.cpp</code></td></tr>
+            <tr><td><code>PdfFilter.dll</code></td><td>Windows Search IFilter，讓檔案總管能全文搜尋 PDF / EPUB / TeX</td><td><code>src/ifilter/</code></td></tr>
+            <tr><td><code>PdfPreview.dll</code></td><td>檔案總管預覽窗格與縮圖</td><td><code>src/previewer/</code></td></tr>
+            <tr><td>測試工具</td><td><code>test_engines</code>、<code>preview_test</code>、<code>plugin-test</code>、<code>bench_image</code>、<code>logview</code></td><td><code>src/tools/</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>另外 <code>src/uia/</code> 實作 UI Automation provider，提供螢幕閱讀器等輔助技術存取文件內容；<code>SumatraControl.cpp</code> 支援以 plugin 模式嵌入其他程式視窗。</p>
+    </section>
+
+    <section id="features">
+      <h2>主要功能</h2>
+      <div class="feat">
+        <div><b>多種檢視模式</b><span>單頁、雙頁、書本模式、連續捲動、簡報模式、旋轉、自訂縮放</span></div>
+        <div><b>分頁與分頁群組</b><span>多文件分頁、Tab groups 管理、工作階段還原</span></div>
+        <div><b>搜尋</b><span>全文搜尋、搜尋結果視窗、忽略變音符號比對</span></div>
+        <div><b>導覽</b><span>目錄側邊欄、書籤 / 我的最愛、頁面縮圖格、同資料夾檔案切換</span></div>
+        <div><b>PDF 註解</b><span>新增、編輯、篩選註解，註解工具列</span></div>
+        <div><b>表單與簽章</b><span>PDF 表單欄位、數位簽章、EU 信任清單驗證</span></div>
+        <div><b>PDF 工具</b><span>合併 PDF、建立 PDF、PNG 最佳化、圖片裁切 / 縮放存檔</span></div>
+        <div><b>LaTeX 整合</b><span>SyncTeX 正向 / 反向搜尋，可連動編輯器</span></div>
+        <div><b>朗讀</b><span>TTS 朗讀（WinRT 語音合成，SAPI 5 備援）</span></div>
+        <div><b>深色模式</b><span>介面主題、PDF 頁面深色重新著色</span></div>
+        <div><b>命令面板與快捷鍵</b><span>Ctrl+K 命令面板、自訂快捷鍵、全域熱鍵</span></div>
+        <div><b>閱讀輔助</b><span>自動捲動、閱讀尺、參照 hover 預覽、鍵盤選取文字</span></div>
+        <div><b>選取文字工具</b><span>翻譯、Google Lens、截圖</span></div>
+        <div><b>AI 對話面板</b><span>整合 Claude Code、Codex、Grok 等 CLI，就目前文件提問</span></div>
+        <div><b>列印</b><span>GDI 與 Windows 11 新列印路徑，命令列列印並以 exit code 回報結果</span></div>
+        <div><b>自動化</b><span>DDE 指令、豐富的命令列參數、設定檔（SquareTree 格式）</span></div>
+        <div><b>系統整合</b><span>檔案總管預覽 / 縮圖 / 全文索引、更新檢查</span></div>
+        <div><b>可靠性</b><span>Crash handler + minidump、hang detector、壓力測試模式</span></div>
+      </div>
+    </section>
+
+    <section id="platforms">
+      <h2>適合的平台</h2>
+      <div class="tbl">
+        <table>
+          <thead><tr><th>平台</th><th>狀態</th><th>說明</th></tr></thead>
+          <tbody>
+            <tr><td>Windows 10 / 11，x64</td><td><span class="pill ok">主要平台</span></td><td>完整功能。預設建置目標；需要 Visual Studio 工具鏈。Markdown / CHM 依賴 WebView2</td></tr>
+            <tr><td>Windows，x86 (32-bit)</td><td><span class="pill ok">支援</span></td><td>僅 release：<code>bun cmd/build.ts -rel -32</code></td></tr>
+            <tr><td>Linux 桌面（X11）</td><td><span class="pill mid">ng 開發中</span></td><td>需要 X11、cairo、pangocairo、gdk-pixbuf、glib、fontconfig、openssl；WebKitGTK 4.1 為選配。未見 Wayland 原生後端，需靠 XWayland</td></tr>
+            <tr><td>macOS</td><td><span class="pill mid">ng 開發中</span></td><td>只能在 macOS 主機上建置，需 Xcode command line tools</td></tr>
+            <tr><td>瀏覽器（WebAssembly）</td><td><span class="pill mid">ng 開發中</span></td><td>用 emscripten 建置，任何主機都可編譯</td></tr>
+            <tr><td>Embedded Linux（無 X11 / framebuffer）</td><td><span class="pill no">不適合</span></td><td>見下方說明</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="note">
+        <p><b>從 embedded Linux 角度看</b></p>
+        <p>ng 的 Linux 版是桌面程式：相依 X11 + cairo + pango + glib 整套 GTK 周邊函式庫，頁面快取預設上限 96 MB，加上 MuPDF、HarfBuzz、FreeType 及多種影像 codec，binary 與記憶體占用對小型板子偏重，也沒有 DRM/KMS 或 framebuffer 後端。</p>
+        <p>如果要在嵌入式裝置顯示 PDF，比較實際的做法是直接用 <code>ext/mupdf</code>（C API，可裁掉不需要的字型與 codec）把頁面畫成 pixmap，再自己寫到 <code>/dev/fb0</code> 或 DRM dumb buffer。SumatraPDF 的 <code>EngineMupdf.cpp</code> 是參考 MuPDF 用法的好範例。有 X11 且 RAM 充足（例如 512 MB 以上的 ARM 板）的話，ng 版可以嘗試，但目前不是官方目標。</p>
+      </div>
+    </section>
+
+    <section id="build">
+      <h2>建置與測試</h2>
+<pre class="cmd"># Windows original app
+bun cmd/build.ts -dbg          # -&gt; out/dbg64/SumatraPDF.exe
+bun cmd/build.ts -rel          # release x64
+bun cmd/build.ts -rel -32      # release x86
+bun cmd/build.ts -asan         # AddressSanitizer build
+
+# Unit tests (debug builds only)
+bun cmd/run-unit-tests.ts -dbg
+
+# Ad-hoc run without touching user settings
+out/dbg64/SumatraPDF.exe -for-testing file.pdf
+
+# ng: Linux / macOS / WebAssembly
+sudo apt install build-essential pkg-config libx11-dev libcairo2-dev \
+  libpango1.0-dev libgdk-pixbuf-2.0-dev libglib2.0-dev libssl-dev
+bun cmd/ng-build.ts -linux -dbg
+bun cmd/ng-build.ts -mac -dbg
+bun cmd/ng-build.ts -wasm -rel</pre>
+      <p>修改 <code>src/</code> 的 C/C++ 後要跑 clang-format；修改 <code>cmd/</code> 的 .ts 後跑 <code>bun cmd/format.ts</code>。<code>vs2022/</code> 內有 Visual Studio 方案檔，可用 IDE 開發除錯。</p>
+    </section>
+
+    <section id="dirs">
+      <h2>目錄速查</h2>
+      <div class="tbl">
+        <table>
+          <thead><tr><th>路徑</th><th>內容</th></tr></thead>
+          <tbody>
+            <tr><td><code>src/</code></td><td>原版 Windows 應用程式：UI、引擎、對話框、安裝程式</td></tr>
+            <tr><td><code>src/base/</code></td><td>無 STL 的基礎函式庫，含 posix / linux / mac / wasm 平台實作</td></tr>
+            <tr><td><code>src/shared/</code></td><td>兩條產品線共用：EngineBase、格式解析、排版、PdfSync、命令定義</td></tr>
+            <tr><td><code>src/gui/</code></td><td>繪圖抽象（Direct2D / GDI+）、版面配置、虛擬控制項、Win32 元件</td></tr>
+            <tr><td><code>src/ng/</code></td><td>跨平台新版（macOS / Linux / WASM）</td></tr>
+            <tr><td><code>src/ifilter/</code>、<code>src/previewer/</code></td><td>Windows 檔案總管搜尋與預覽外掛</td></tr>
+            <tr><td><code>src/uia/</code></td><td>UI Automation 無障礙支援</td></tr>
+            <tr><td><code>src/mupdf/</code></td><td>編進 MuPDF 的自有檔案</td></tr>
+            <tr><td><code>src/tools/</code>、<code>src/regress/</code></td><td>測試、效能量測與回歸測試工具</td></tr>
+            <tr><td><code>ext/</code></td><td>第三方函式庫；版本記錄在 <code>ext/versions.txt</code>，MuPDF 修改記錄在 <code>ext/patches/</code></td></tr>
+            <tr><td><code>cmd/</code></td><td>bun / TypeScript 建置、程式碼產生、翻譯、crash 分析腳本</td></tr>
+            <tr><td><code>vs2022/</code></td><td>Visual Studio 方案與專案檔</td></tr>
+            <tr><td><code>docs/</code></td><td>文件產生器與說明文件</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <footer>根據 <code>claude/admiring-lovelace-g5cd8t</code> 分支的原始碼整理（commit 086237e）。行數為 <code>wc -l</code> 粗估。</footer>
+  </main>
+</div>
